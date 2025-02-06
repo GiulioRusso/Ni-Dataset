@@ -9,6 +9,9 @@
 
 This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data.
 
+## 🤝 Contribution
+👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
+
 ## ⬇️ Installation
 Now, this code is available with PyPI at https://pypi.org/project/nidataset/. The package can be installed with:
 
@@ -86,9 +89,6 @@ Install the requirements with:
 ```bash
 pip3 install -r requirements.txt
 ```
-
-## 🤝 Contribution
-👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
 
 ## ⚖️ License
 
