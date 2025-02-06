@@ -1,4 +1,4 @@
-<table><td><img src="./images/logo.png" width=120px></td><td><h1>NIfTI Dataset Management</h1></td></table>
+<table border-collapse="collapse"><td><img src="./images/logo.png" width=120px></td><td><h1>NIfTI Dataset Management</h1></td></table>
 
 This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data.
 
