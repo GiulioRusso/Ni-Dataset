@@ -1,7 +1,9 @@
-<div>
-    <img src="./images/logo.png" width="120px" style="vertical-align: middle; margin-right: 10px;">
-    <span style="font-size: 2em; font-weight: bold; vertical-align: middle;">NIfTI Dataset Management</span>
-</div>
+<table>
+  <tr>
+    <td><img src="./images/logo.png" width="120px"></td>
+    <td><h1>NIfTI Dataset Management</h1></td>
+  </tr>
+</table>
 
 <br>
 
