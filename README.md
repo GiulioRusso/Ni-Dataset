@@ -87,7 +87,7 @@ tqdm>=4.67.1
 
 Install the requirements with:
 ```bash
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ## ⚖️ License
