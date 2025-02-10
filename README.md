@@ -1,9 +1,4 @@
-<table>
-  <tr>
-    <td><img src="./images/logo.png" width="120px"></td>
-    <td><h1>NIfTI Dataset Management</h1></td>
-  </tr>
-</table>
+<center><h1><img align="center" src="./images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
 
 <br>
 
