@@ -1,6 +1,6 @@
 # nidataset/__init__.py
 
-from .Draw import *
-from .Slices import *
-from .Volume import *
-from .Utility import *
+from . import Draw
+from . import Slices
+from . import Volume
+from . import Utility
