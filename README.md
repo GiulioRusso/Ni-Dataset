@@ -27,6 +27,7 @@ The package consists of the following Python modules:
 ```bash
 .
 ├── nidataset/                # The NIfTI dataset management package folder
+│   ├── Draw.py               # Functions for drawing and manipulating bounding boxes on NIfTI images.
 │   ├── Slices.py             # Functions for extracting slices and annotations from NIfTI files.
 │   ├── Utility.py            # Utility functions for dataset information statistics.
 │   ├── Volume.py             # Functions for NIfTI volume transformations and modifications.
@@ -41,6 +42,12 @@ The package consists of the following Python modules:
 ```
 
 ## 📦 Package organization
+
+### Draw 🧊 
+Handles operations related to bounding boxes.
+
+- **draw_boxes_on_nifti**: Draws 3D bounding boxes on a nii.gz file based on a provided tensor.
+- **switch_box_coords**: Switches box coordinates in the tensor based on the specified anatomical view.
 
 ### Slices 🩻
 Handles operations related to slices.
