@@ -75,6 +75,8 @@ Handles operations related to volume.
 - **generate_brain_mask_from_dataset**: Generates brain masks for all brain CTA scans in a dataset folder and saves them as NIfTI files.
 - **crop_and_pad**: Finds the minimum bounding box around a CTA scan, resizes it to a target shape, and preserves spatial orientation.
 - **crop_and_pad_from_dataset**: Processes all CTA scans in a dataset folder, applies crop_and_pad, and saves results.
+- **skull_CTA**: Skull the input CTA with thresholding, smoothing, FSL BET, and clipping pipeline.
+- **skull_CTA_from_dataset**: Skull the input CTA dataset with thresholding, smoothing, FSL BET, and clipping pipeline.
 
 ## 🚨 Requirements
 

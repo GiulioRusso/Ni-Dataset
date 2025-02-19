@@ -765,4 +765,172 @@ def crop_and_pad_from_dataset(nii_folder: str,
         print(f"\nCrop and pad statistics saved in: '{stats_file}'")
 
 
+def skull_CTA(nii_path: str,
+              output_path: str,
+              f_value: float = 0.1,
+              clip_value: tuple = (0, 200),
+              cleanup: bool = False,
+              debug: bool = False) -> None:
+    """
+    Performs a skull-stripping pipeline designed for CTA (thresholding, smoothing, FSL BET, and clipping) on a single NIfTI file.
+
+    :implementation note:
+        CTAs has to be already centered to the brain area (no robust_fov is applied in this pipeline to ensure the input dimension is kept).
+        FSL command line needs to be installed via official site (https://fsl.fmrib.ox.ac.uk/fsldownloads_registration/).
+        The file that will use this function needs to be launched from terminal: `python3 main.py`, where `main.py` use this function.
+
+    :param nii_path: Path to the input .nii.gz file with shape (X, Y, Z).
+    :param output_path: Directory where intermediate and final outputs will be stored.
+    :param f_value: Fractional intensity threshold for BET (skull-stripping).
+    :param clip_value:   Minimum and maximum intensity values for clipping, e.g. (0, 200).
+    :param cleanup: If True, removes intermediate files (thresholded and skulled images). Mask and clipped brain outputs are always kept.
+    :param debug: If True, prints additional debugging information.
+
+    :raises FileNotFoundError: If nii_path does not exist.
+    :raises ValueError: If the file is not a .nii.gz, or if data is not 3D.
+    """
+
+    # validate input path
+    if not os.path.isfile(nii_path):
+        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
+
+    # ensure data type
+    if not nii_path.endswith(".nii.gz"):
+        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
+
+    # create output dir if it does not exists
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # cuild intermediate paths
+    base_name    = os.path.basename(nii_path).replace(".nii.gz", "")
+    th_img       = os.path.join(output_path, f"{base_name}_th.nii.gz")
+    th_sm_img    = os.path.join(output_path, f"{base_name}_th_sm.nii.gz")
+    th_sm_th_img = os.path.join(output_path, f"{base_name}_th_sm_th.nii.gz")
+    skulled_img  = os.path.join(output_path, f"{base_name}.skulled.nii.gz")
+    mask_img     = os.path.join(output_path, f"{base_name}.skulled_mask.nii.gz")
+    clipped_img  = os.path.join(output_path, f"{base_name}.skulled.clipped.nii.gz")
+
+    # threshold [0-100], smoothing, threshold [0-100]
+    try:
+        subprocess.run(["fslmaths", nii_path, "-thr", "0", "-uthr", "100", th_img], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["fslmaths", th_img, "-s", "1", th_sm_img], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["fslmaths", th_sm_img, "-thr", "0", "-uthr", "100", th_sm_th_img], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # BET skull stripping (makes the skulled image + mask)
+        subprocess.run([
+            "bet", th_sm_th_img, skulled_img, "-R",
+            "-f", str(f_value), "-g", "0", "-m"
+        ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"FSL command failed for '{nii_path}' with error: {e.stderr.decode()}")
+
+    # load skulled image, clip intensities to desired values, save final .nii.gz
+    nii_skulled = nib.load(skulled_img)
+    skulled_data = nii_skulled.get_fdata()
+    clipped_data = np.clip(skulled_data, clip_value[0], clip_value[0])  # clip to desired values
+    clipped_nii  = nib.Nifti1Image(clipped_data, nii_skulled.affine, nii_skulled.header)
+    nib.save(clipped_nii, clipped_img)
+
+    # optional cleanup
+    if cleanup:
+        # remove intermediate files except mask and clipped images
+        for tmp_file in [th_img, th_sm_img, th_sm_th_img, skulled_img]:
+            if os.path.exists(tmp_file):
+                os.remove(tmp_file)
+
+        if debug:
+            print("Intermediate files have been removed.")
+
+    if debug:
+        print(f"\nSkull-stripped image saved at: {clipped_img}\n"
+            f"Skull mask saved at: {mask_img}")
+
+
+def skull_CTA_from_dataset(nii_folder: str,
+                           output_path: str,
+                           f_value: float = 0.1,
+                           clip_value: tuple = (0, 200),
+                           cleanup: bool = False,
+                           saving_mode: str = "case",
+                           debug: bool = False) -> None:
+    """
+    Performs a skull-stripping pipeline designed for CTA (thresholding, smoothing, FSL BET, and clipping) on the NIfTI files inside the input folder.
+
+    :implementation note:
+        CTAs has to be already centered to the brain area (no robust_fov is applied in this pipeline to ensure the input dimension is kept).
+        FSL command line needs to be installed via official site (https://fsl.fmrib.ox.ac.uk/fsldownloads_registration/).
+        The file that will use this function needs to be launched from terminal: `python3 main.py`, where `main.py` use this function.
+
+    :param nii_folder:  Directory containing .nii.gz files to be processed.
+    :param output_path: Directory where the skull-stripped .nii.gz files will be saved.
+    :param f_value:     Fractional intensity threshold for BET (skull-stripping).
+    :param clip_value:  Minimum and maximum intensity values for clipping, e.g. (0, 200).
+    :param cleanup:     If True, removes intermediate files (thresholded and skulled images). Mask and clipped images are always retained.
+    :param saving_mode: "case" -> creates a dedicated subfolder for each .nii.gz file.
+                        "view" -> saves all the results in a single subfolder called 'skulled'.
+    :param debug:       If True, prints additional information about the process.
+
+    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
+    :raises ValueError:        If an invalid saving_mode is provided.
+    """
+
+    # check if the dataset folder exists
+    if not os.path.isdir(nii_folder):
+        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
+
+    # retrieve all .nii.gz files
+    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
+    if not nii_files:
+        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+
+    # validate saving_mode
+    if saving_mode not in ["case", "view"]:
+        raise ValueError("Error: saving_mode must be either 'case' or 'view'.")
+
+    # create output dir if it does not exists
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # for "view" mode, create a single folder to store all outputs
+    if saving_mode == "view":
+        view_output_dir = os.path.join(output_path, "skulled")
+        os.makedirs(view_output_dir, exist_ok=True)
+    else:
+        view_output_dir = None
+
+    # process files with a progress bar
+    for nii_file in tqdm(nii_files, desc="Skull-stripping NIfTI files", unit="file"):
+        nii_path = os.path.join(nii_folder, nii_file)
+        prefix   = os.path.splitext(os.path.splitext(nii_file)[0])[0]  # remove .nii.gz
+
+        if debug:
+            print(f"Processing: {prefix}")
+
+        # if saving_mode = "case", create one subfolder for each file
+        if saving_mode == "case":
+            case_output_dir = os.path.join(output_path, prefix)
+            os.makedirs(case_output_dir, exist_ok=True)
+            skull_CTA(
+                nii_path=nii_path,
+                output_path=case_output_dir,
+                f_value=f_value,
+                clip_value=clip_value,
+                cleanup=cleanup,
+                debug=debug
+            )
+
+        else:  # saving_mode = "view"
+            skull_CTA(
+                nii_path=nii_path,
+                output_path=view_output_dir,
+                f_value=f_value,
+                clip_value=clip_value,
+                cleanup=cleanup,
+                debug=debug
+            )
+
+    if debug:
+        print(f"Skull-stripping completed for all files in '{nii_folder}'.")
 
