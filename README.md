@@ -47,7 +47,7 @@ The package consists of the following Python modules:
 Handles operations related to bounding boxes.
 
 - **draw_boxes_on_nifti**: Draws 3D bounding boxes on a nii.gz file based on a provided tensor.
-- **switch_box_coords**: Switches box coordinates in the tensor based on the specified anatomical view.
+- **from_2D_to_3D_coords**: Switches box or points coordinates between the 2D and 3D reference system based on the specified anatomical view.
 
 ### Slices 🩻
 Handles operations related to slices.
