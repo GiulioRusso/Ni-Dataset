@@ -2,6 +2,7 @@ import numpy as np
 import nibabel as nib
 import torch
 
+
 def draw_boxes_on_nifti(tensor: torch.Tensor,
                         nifti_file_path: str,
                         intensity_based_on_score: bool = False,
@@ -20,7 +21,6 @@ def draw_boxes_on_nifti(tensor: torch.Tensor,
     
     # load the nii.gz file
     nifti_image = nib.load(nifti_file_path)
-    data = nifti_image.get_fdata()
     affine = nifti_image.affine
 
     # create a new data array for output
@@ -54,27 +54,44 @@ def draw_boxes_on_nifti(tensor: torch.Tensor,
         print(f"New nii.gz file saved at: {new_file_path}")
 
 
-def switch_box_coords(tensor: torch.Tensor, view: str) -> torch.Tensor:
+def from_2D_to_3D_coords(tensor: torch.Tensor, view: str) -> torch.Tensor:
     """
     Switches the box coordinates in the tensor based on the specified anatomical view.
 
-    :param tensor: A tensor with columns ['SCORE', 'X MIN', 'Y MIN', 'Slice number MIN', 'X MAX', 'Y MAX', 'Slice number MAX'] with 2D coords.
-    :param view: The view from which to adjust the coordinates ('axial', 'coronal', 'sagittal').
+    Args:
+    tensor (torch.Tensor): A tensor with columns ['X MIN', 'Y MIN', 'SLICE NUMBER MIN', 'X MAX', 'Y MAX', 'SLICE NUMBER MAX'] or ['X', 'Y', 'SLICE NUMBER'].
+    view (str): The view from which to adjust the coordinates ('axial', 'coronal', 'sagittal').
 
-    :return result: The tensor with adjusted coordinates in the 3D reference system ['SCORE', 'X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX'].
+    Returns:
+    torch.Tensor: The tensor with adjusted coordinates.
     """
-    # Create a copy of the tensor to modify
+
+    if tensor.shape[1] not in (3, 6):
+        raise ValueError(f"Error: The input tensor has to be with 3 or 6 columns. Got {tensor.shape[1]} instead.")
+
+    # create a copy of the tensor to modify
     result = tensor.clone()
 
-    if 'axial' in view:
-        # switch X and Y coordinates: Y, X, Slice number as X, Y, Z in 3D
-        result[:, [1, 2, 3, 4, 5, 6]] = result[:, [2, 1, 3, 5, 4, 6]]
-    elif 'coronal' in view:
-        # from X, Y, Slice number to Slice number, Y, X as X, Y, Z in 3D
-        result[:, [1, 2, 3, 4, 5, 6]] = result[:, [3, 1, 2, 6, 4, 5]]
-    elif 'sagittal' in view:
-        # switch X and Slice number: Slice number, Y, X as X, Y, Z in 3D
-        result[:, [1, 2, 3, 4, 5, 6]] = result[:, [3, 2, 1, 6, 5, 4]]
+    if result.shape[1] == 6:
+        if 'axial' in view:
+            # switch X and Y coordinates
+            result[0, 1, 2, 3, 4, 5] = result[1, 0, 2, 4, 3, 5]
+        elif 'coronal' in view:
+            # switch X with Y and Y with SLICE NUMBER
+            result[0, 1, 2, 3, 4, 5] = result[2, 0, 1, 5, 3, 4]
+        elif 'sagittal' in view:
+            # switch X with SLICE NUMBER
+            result[0, 1, 2, 3, 4, 5] = result[2, 3, 0, 5, 4, 3]
+    elif result.shape[1] == 3:
+        if 'axial' in view:
+            # switch X and Y coordinates
+            result[0, 1, 2] = result[1, 0, 2]
+        elif 'coronal' in view:
+            # switch X with Y and Y with SLICE NUMBER
+            result[0, 1, 2] = result[2, 0, 1]
+        elif 'sagittal' in view:
+            # switch X with SLICE NUMBER
+            result[0, 1, 2] = result[2, 3, 0]
 
     return result
 
