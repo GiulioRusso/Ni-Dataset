@@ -2,24 +2,60 @@ import numpy as np
 import nibabel as nib
 import torch
 import os
+import pandas as pd
 
 
-def draw_boxes_on_nifti(tensor: torch.Tensor,
-                        nii_path: str,
-                        output_path: str,
-                        intensity_based_on_score: bool = False,
-                        debug: bool = False) -> None:
+def draw_boxes(df: pd.DataFrame,
+               nii_path: str,
+               output_path: str,
+               output_filename: str,
+               intensity_based_on_score: bool = False,
+               debug: bool = False) -> None:
     """
-    Draws 3D bounding boxes on a nii.gz file based on the provided tensor and saves a new nii.gz file inside the specified output path.
+    Draws 3D bounding boxes on a nii.gz file. The coords have to be specified inside the input dataframe. A Nifti file is requested as reference and to draw the boxes aligned to this file.
 
-    :param tensor: A tensor containing columns with the following structure: ['SCORE', 'X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX'] where XYZ are already in the 3D reference system.
-    :param nii_path: Path to the original nii.gz file.
-    :param output_path: Output path.
-    :param intensity_based_on_score: If True, use the 'SCORE' column for box intensity with steps. Otherwise, use intensity 1.
+    :param df: a dataframe containing columns: ['SCORE', 'X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX'] belonging to a 3D reference system.
+    :param nii_path: path to the original nii.gz file from which metadata are taken (in order to keep alignment)
+    :param output_path: output path where the nifti draw will be saved.
+    :param output_filename: name of the nifti draw file.
+    :param intensity_based_on_score: if True, use the 'SCORE' column for box intensity with steps. Otherwise, use intensity 1.
     :param debug: if True, prints additional information about the draw.
 
-    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: if an invalid view or saving_mode is provided.
+    :raises FileNotFoundError: if the input NIfTI file does not exist.
+    :raises ValueError: if the input dataframe does not contain the required columns.
+    :raises ValueError: if the input dataframe contains NaN values.
+
+    
+    Example:
+
+        import pandas as pd
+        from nidataset.Draw import draw_boxes_on_nifti
+
+        # example dataframe with bounding boxes
+        data = {
+            'SCORE': [0.3, 0.7, 0.9],
+            'X MIN': [10, 30, 50],
+            'Y MIN': [15, 35, 55],
+            'Z MIN': [20, 40, 60],
+            'X MAX': [20, 40, 60],
+            'Y MAX': [25, 45, 65],
+            'Z MAX': [30, 50, 70]
+        }
+
+        df = pd.DataFrame(data)
+
+        # specify input and output paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+        output_filename = "output_with_boxes.nii.gz"
+
+        # call the function
+        draw_boxes(df=df,
+                   nii_path=nii_path,
+                   output_path=output_path,
+                   output_filename=output_filename,
+                   intensity_based_on_score=True,
+                   debug=True)
     """
 
     # check if the input file exists
@@ -33,6 +69,15 @@ def draw_boxes_on_nifti(tensor: torch.Tensor,
     # create output dir if it does not exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
+
+    # define expected columns based on intensity_based_on_score flag
+    expected_columns = ['X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX']
+    if intensity_based_on_score:
+        expected_columns.insert(0, 'SCORE')
+    
+    # validate dataframe
+    if not all(col in df.columns for col in expected_columns):
+         raise ValueError(f"Error: The input dataframe must contain columns: {expected_columns}")
     
     # load the nii.gz file
     nifti_image = nib.load(nii_path)
@@ -43,7 +88,7 @@ def draw_boxes_on_nifti(tensor: torch.Tensor,
     output_data = np.zeros((x_axis, y_axis, z_axis))
 
     # process each row in the tensor to draw boxes
-    for _, row in enumerate(tensor):
+    for _, row in df.iterrows():
         score, x_min, y_min, z_min, x_max, y_max, z_max = row.tolist()
 
         # determine the intensity for the box based on the score
@@ -61,55 +106,99 @@ def draw_boxes_on_nifti(tensor: torch.Tensor,
         output_data[int(x_min):int(x_max), int(y_min):int(y_max), int(z_min):int(z_max),] = intensity
 
     # create a new Nifti image
-    new_nifti_image = nib.Nifti1Image(output_data, affine)
-    new_nifti_filename = os.path.basename(nii_path).replace('.nii.gz', '_with_boxes.nii.gz')
-    nii_output_path =  os.path.join(output_path, new_nifti_filename)
-    nib.save(new_nifti_image, nii_output_path)
+    nifti_draw = nib.Nifti1Image(output_data, affine)
+    nii_output_path =  os.path.join(output_path, output_filename)
+    nib.save(nifti_draw, nii_output_path)
 
     if debug:
-        print(f"New nii.gz file saved at: {nii_output_path}")
+        print(f"Boxes draw saved at: '{nii_output_path}'")
 
 
-def from_2D_to_3D_coords(tensor: torch.Tensor,
-                         view: str) -> torch.Tensor:
+def from_2D_to_3D_coords(df: pd.DataFrame,
+                         view: str) -> pd.DataFrame:
     """
-    Switches the box coordinates in the tensor based on the specified anatomical view.
+    Switches the box coordinates in the dataframe based on the specified anatomical view.
 
-    :param tensor: A tensor containing columns with the following structure: ['X MIN', 'Y MIN', 'SLICE NUMBER MIN', 'X MAX', 'Y MAX', 'SLICE NUMBER MAX'] or ['X', 'Y', 'SLICE NUMBER'].
-    :param view: The view from which to adjust the coordinates ('axial', 'coronal', 'sagittal').
+    :param df: a dataframe containing columns with the following structure: 
+               ['X MIN', 'Y MIN', 'SLICE NUMBER MIN', 'X MAX', 'Y MAX', 'SLICE NUMBER MAX'] 
+               or ['X', 'Y', 'SLICE NUMBER'].
+    :param view: the view from which to adjust the coordinates ('axial', 'coronal', 'sagittal').
 
-    :return result: The tensor with adjusted coordinates.
+    :return result_df: the dataframe with adjusted coordinates.
 
-    :raises ValueError: if an invalid number of columns is provided inside the input tensor.
+    :raises ValueError: if an invalid number of columns is provided inside the input dataframe.
+    :raises ValueError: if the dataframe is missing required columns.
+    :raises ValueError: if the view is not 'axial', 'coronal', or 'sagittal'.
+
+    Example:
+
+        import pandas as pd
+        from nidataset.Draw import from_2D_to_3D_coords
+
+        # example dataframe with bounding box coordinates in 2D (axial view)
+        data = {
+            'X MIN': [10, 30, 50],
+            'Y MIN': [15, 35, 55],
+            'SLICE NUMBER MIN': [5, 10, 15],
+            'X MAX': [20, 40, 60],
+            'Y MAX': [25, 45, 65],
+            'SLICE NUMBER MAX': [10, 15, 20]
+        }
+
+        df = pd.DataFrame(data)
+
+        # specify the anatomical view
+        view = 'axial'
+
+        # convert 2D coordinates to 3D
+        df_3d = from_2D_to_3D_coords(df, view)
+
+        # display the modified dataframe
+        print(df_3d)
+
     """
 
-    if tensor.shape[1] not in (3, 6):
-        raise ValueError(f"Error: The input tensor has to be with 3 or 6 columns. Got {tensor.shape[1]} instead.")
+    # validate the view parameter
+    valid_views = {'axial', 'coronal', 'sagittal'}
+    if view not in valid_views:
+        raise ValueError(f"Error: The view must be one of {valid_views}. Got '{view}'.")
 
-    # create a copy of the tensor to modify
-    result = tensor.clone()
+    # validate the number of columns
+    if df.shape[1] not in (3, 6):
+        raise ValueError(f"Error: The input dataframe must have 3 or 6 columns. Got '{df.shape[1]}'.")
 
-    if result.shape[1] == 6:
-        if 'axial' in view:
-            # switch X and Y coordinates
-            result[0, 1, 2, 3, 4, 5] = result[1, 0, 2, 4, 3, 5]
-        elif 'coronal' in view:
-            # switch X with Y and Y with SLICE NUMBER
-            result[0, 1, 2, 3, 4, 5] = result[2, 0, 1, 5, 3, 4]
-        elif 'sagittal' in view:
-            # switch X with SLICE NUMBER
-            result[0, 1, 2, 3, 4, 5] = result[2, 3, 0, 5, 4, 3]
-    elif result.shape[1] == 3:
-        if 'axial' in view:
-            # switch X and Y coordinates
-            result[0, 1, 2] = result[1, 0, 2]
-        elif 'coronal' in view:
-            # switch X with Y and Y with SLICE NUMBER
-            result[0, 1, 2] = result[2, 0, 1]
-        elif 'sagittal' in view:
-            # switch X with SLICE NUMBER
-            result[0, 1, 2] = result[2, 3, 0]
+    # validate the column names
+    if df.shape[1] == 6:
+        expected_columns = ['X MIN', 'Y MIN', 'SLICE NUMBER MIN', 'X MAX', 'Y MAX', 'SLICE NUMBER MAX']
+    else:
+        expected_columns = ['X', 'Y', 'SLICE NUMBER']
 
-    return result
+    if not all(col in df.columns for col in expected_columns):
+        raise ValueError(f"Error: The input dataframe must contain columns: {expected_columns}")
 
+    # copy the dataframe for modification
+    result_df = df.copy()
 
+    # apply coordinate switching based on the anatomical view
+    if df.shape[1] == 6:
+        if view == 'axial':
+            result_df[['X MIN', 'Y MIN', 'X MAX', 'Y MAX']] = df[['Y MIN', 'X MIN', 'Y MAX', 'X MAX']]
+        elif view == 'coronal':
+            result_df[['X MIN', 'Y MIN', 'SLICE NUMBER MIN', 'X MAX', 'Y MAX', 'SLICE NUMBER MAX']] = df[['SLICE NUMBER MIN', 'X MIN', 'Y MIN', 'SLICE NUMBER MAX', 'X MAX', 'Y MAX']]
+        elif view == 'sagittal':
+            result_df[['X MIN', 'SLICE NUMBER MIN', 'Y MIN', 'X MAX', 'SLICE NUMBER MAX', 'Y MAX']] = df[['SLICE NUMBER MIN', 'X MIN', 'Y MIN', 'SLICE NUMBER MAX', 'X MAX', 'Y MAX']]
+    elif df.shape[1] == 3:
+        if view == 'axial':
+            result_df[['X', 'Y']] = df[['Y', 'X']]
+        elif view == 'coronal':
+            result_df[['X', 'Y', 'SLICE NUMBER']] = df[['SLICE NUMBER', 'X', 'Y']]
+        elif view == 'sagittal':
+            result_df[['X', 'SLICE NUMBER', 'Y']] = df[['SLICE NUMBER', 'X', 'Y']]
+
+    # rename columns
+    if df.shape[1] == 6:
+        result_df.columns = ['X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX']
+    else:
+        result_df.columns = ['X', 'Y', 'Z']
+
+    return result_df
