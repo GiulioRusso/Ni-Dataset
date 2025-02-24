@@ -11,7 +11,9 @@ def extract_slices(nii_path: str,
                    view: str = "axial", 
                    debug: bool = False) -> None:
     """
-    Extracts slices from a NIfTI file and saves them as images .tif, based on the selected view and named with the NIfTI filename with the progressive slice number.
+    Extracts slices from a NIfTI file and saves them as images .tif, following the structure
+
+        <NIFTI FILENAME>_<VIEW>_<PROGRESSIVE SLICE NUMBER>.tif
 
     :param nii_path: path to the input .nii.gz file with shape (X, Y, Z).
     :param output_path: path where the extracted slices will be saved.
@@ -21,7 +23,28 @@ def extract_slices(nii_path: str,
     :param debug: verbose print about the total number of slices extracted. default is False.
 
     :raises FileNotFoundError: if the input NIfTI file does not exist.
-    :raises ValueError: if the NIfTI file is empty, has invalid extension, or an invalid view is provided.
+    :raises ValueError: if the NIfTI file is empty or has invalid extension.
+    :raises ValueError: if the view is not 'axial', 'coronal', or 'sagittal'.
+    :raises ValueError: if the input NIfTI file does not have a 3D dimension.
+    :raises ValueError: if the input NIfTI file does not have a volume.
+
+    Example:
+
+        from nidataset.Slices import extract_slices
+
+        # define paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        view = "axial"
+
+        # run the function
+        extract_slices(nii_path=nii_path, 
+                       output_path=output_path, 
+                       view=view, 
+                       debug=True)
+
     """
 
     # check if the input file exists
@@ -30,7 +53,12 @@ def extract_slices(nii_path: str,
 
     # ensure the file is a .nii.gz file
     if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. expected a '.nii.gz' file, but got '{nii_path}'.")
+        raise ValueError(f"Error: invalid file format. expected a '.nii.gz' file. Got '{nii_path}' instead.")
+
+    # validate the view parameter
+    valid_views = {'axial', 'coronal', 'sagittal'}
+    if view not in valid_views:
+        raise ValueError(f"Error: The view must be one of {valid_views}. Got '{view}' instead.")
 
     # create output dir if it does not exists
     if not os.path.exists(output_path):
@@ -42,7 +70,7 @@ def extract_slices(nii_path: str,
 
     # validate NIfTI data dimensions
     if nii_data.ndim != 3:
-        raise ValueError(f"Error: expected a 3D NIfTI file, but got shape {nii_data.shape}")
+        raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
 
     # mapping of views to slicing axes
     view_mapping = {
@@ -50,10 +78,6 @@ def extract_slices(nii_path: str,
         "coronal": (1, lambda data, i: data[:, i, :]),     # Y-axis
         "sagittal": (0, lambda data, i: data[i, :, :])     # X-axis
     }
-
-    # validate view
-    if view not in view_mapping:
-        raise ValueError("Error: view must be 'axial', 'coronal', or 'sagittal'.")
 
     # get axis and slicing function
     axis, slice_func = view_mapping[view]
@@ -74,7 +98,7 @@ def extract_slices(nii_path: str,
         slice_data = slice_func(nii_data, i)
 
         # construct filename with zero-padded slice index
-        slice_filename = f"{prefix}_{str(i).zfill(3)}.tif"
+        slice_filename = f"{prefix}_{view}_{str(i).zfill(3)}.tif"
         slice_path = os.path.join(output_path, slice_filename)
 
         # save slice as an image
@@ -92,7 +116,9 @@ def extract_slices_from_dataset(nii_folder: str,
                                 saving_mode: str = "case", 
                                 save_stats: bool = False) -> None:
     """
-    Extracts slices from all NIfTI files in a dataset folder and saves them as images .tif, based on the selected view and named with the NIfTI filename with the progressive slice number.
+    Extracts slices from all NIfTI files in a dataset folder and saves them as images .tif, following the structure
+
+        <NIFTI FILENAME>_<VIEW>_<PROGRESSIVE SLICE NUMBER>.tif
 
     :param nii_folder: path to the folder containing all .nii.gz files with shape (X, Y, Z).
     :param output_path: path where the extracted slices will be saved.
@@ -101,10 +127,29 @@ def extract_slices_from_dataset(nii_folder: str,
                  "sagittal" -> extracts along the X-axis.
     :param saving_mode: "case" -> creates a folder for each case.
                         "view" -> saves all slices inside a single view folder.
-    :param save_stats: if True, saves a CSV file with FILENAME and NUM_SLICES information per case.
+    :param save_stats: if True, saves a CSV file with FILENAME and NUM_SLICES information per case as <VIEW>_slices_stats.csv.
 
     :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
     :raises ValueError: if an invalid view or saving_mode is provided.
+
+    Example:
+
+        from nidataset.Slices import extract_slices_from_dataset
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        view = "axial"
+
+        # run the function
+        extract_slices_from_dataset(nii_folder=nii_folder, 
+                                    output_path=output_path, 
+                                    view=view, 
+                                    saving_mode="view",
+                                    save_stats=True)
+
     """
 
     # check if the dataset folder exists
@@ -117,12 +162,15 @@ def extract_slices_from_dataset(nii_folder: str,
     # check if there are NIfTI files in the dataset folder
     if not nii_files:
         raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+    
+    # validate the view parameter
+    valid_views = {'axial', 'coronal', 'sagittal'}
+    if view not in valid_views:
+        raise ValueError(f"Error: The view must be one of {valid_views}. Got '{view}' instead.")
 
     # validate input parameters
     if saving_mode not in ["case", "view"]:
-        raise ValueError("error: saving_mode must be either 'case' or 'view'.")
-    if view not in ["axial", "coronal", "sagittal"]:
-        raise ValueError("error: view must be 'axial', 'coronal', or 'sagittal'.")
+        raise ValueError(f"Error: saving_mode must be either 'case' or 'view'. Got '{saving_mode}' instead.")
 
     # create output dir if it does not exists
     if not os.path.exists(output_path):
@@ -156,7 +204,7 @@ def extract_slices_from_dataset(nii_folder: str,
             num_slices = nii_data.shape[{"axial": 2, "coronal": 1, "sagittal": 0}[view]]
         except Exception as e:
             tqdm.write(f"Error processing {nii_file} for statistical analysis: {e}")
-            continue  # skip this file if an error occurs
+            continue  # skip this file if an Error occurs
         
         # keep track of the total number of slices
         total_slices += num_slices
@@ -189,7 +237,13 @@ def extract_annotations(nii_path: str,
                         data_mode: str = "center",
                         debug: bool = False) -> None:
     """
-    Extracts annotations from a NIfTI  annotation file and saves them as CSV, based on the selected view and named with the NIfTI filename with the progressive slice number.
+    Extracts annotations from a NIfTI annotation file and saves them as CSV, based on the selected view and named with:
+
+        <NIFTI FILENAME>_<VIEW>_<PROGRESSIVE SLICE NUMBER>.csv
+
+    or
+
+        <NIFTI FILENAME>.csv
 
     :param nii_path: path to the input .nii.gz file with shape (X, Y, Z).
     :param output_path: path where the CSV annotations will be saved.
@@ -202,32 +256,64 @@ def extract_annotations(nii_path: str,
                       "box" -> saves the bounding box coordinates.
     :param debug: if True, prints additional information about the extraction.
 
-    :raises FileNotFoundError: if the annotation file does not exist.
-    :raises ValueError: if invalid view, saving_mode, or data_mode is provided.
+    :raises FileNotFoundError: if the input NIfTI file does not exist.
+    :raises ValueError: if the NIfTI file is empty or has invalid extension.
+    :raises ValueError: if the view is not 'axial', 'coronal', or 'sagittal'.
+    :raises ValueError: if the saving_mode and data_mode are not correct.
+
+    Example:
+
+        from nidataset.Slices import extract_annotations
+
+        # define paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        view = "axial"
+
+        # run the function
+        extract_annotations(nii_path=nii_path, 
+                            output_path=output_path, 
+                            view=view, 
+                            saving_mode="slice",
+                            data_mode="center",
+                            debug=True)
     """
 
-    # check if the input annotation file exists
+    # check if the input file exists
     if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"error: the annotation file '{nii_path}' does not exist.")
+        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
 
-    # validate input parameters
-    if view not in ["axial", "coronal", "sagittal"]:
-        raise ValueError("error: view must be 'axial', 'coronal', or 'sagittal'.")
-    if saving_mode not in ["slice", "volume"]:
-        raise ValueError("error: saving_mode must be either 'slice' or 'volume'.")
-    if data_mode not in ["center", "box"]:
-        raise ValueError("error: data_mode must be either 'center' or 'box'.")
+    # ensure the file is a .nii.gz file
+    if not nii_path.endswith(".nii.gz"):
+        raise ValueError(f"Error: invalid file format. expected a '.nii.gz' file, but got '{nii_path}'.")
 
-    # load the 3D annotation file
-    nii_img = nib.load(nii_path)
-    nii_data = nii_img.get_fdata()
-
-    # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    # validate the view parameter
+    valid_views = {'axial', 'coronal', 'sagittal'}
+    if view not in valid_views:
+        raise ValueError(f"Error: The view must be one of {valid_views}. Got '{view}' instead.")
 
     # create output dir if it does not exists
     if not os.path.exists(output_path):
         os.makedirs(output_path)
+
+    # load the NIfTI file
+    nii_img = nib.load(nii_path)
+    nii_data = nii_img.get_fdata()
+
+    # validate NIfTI data dimensions
+    if nii_data.ndim != 3:
+        raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
+
+    # validate saving_mode and data_mode
+    if saving_mode not in ["slice", "volume"]:
+        raise ValueError("Error: saving_mode must be either 'slice' or 'volume'.")
+    if data_mode not in ["center", "box"]:
+        raise ValueError("Error: data_mode must be either 'center' or 'box'.")
+
+    # extract filename prefix
+    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
 
     # identify all 3D bounding boxes
     unique_labels = np.unique(nii_data)
@@ -297,7 +383,7 @@ def extract_annotations(nii_path: str,
         # process each slice
         num_slices = len(slice_annotations)
         for z, boxes in tqdm(slice_annotations.items(), desc=f"Processing {prefix} (Slices)", unit="slice"):
-            slice_filename = f"{prefix}_{str(z).zfill(3)}.csv"
+            slice_filename = f"{prefix}_{view}_{str(z).zfill(3)}.csv"
             slice_file = os.path.join(output_path, slice_filename)
 
             with open(slice_file, mode="w", newline="") as csvfile:
@@ -321,7 +407,13 @@ def extract_annotations_from_dataset(nii_folder: str,
                                      data_mode: str = "center",
                                      save_stats: bool = False) -> None:
     """
-    Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV.
+    Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV, based on the selected view and named with:
+
+        <NIFTI FILENAME>_<VIEW>_<PROGRESSIVE SLICE NUMBER>.csv
+
+    or
+
+        <NIFTI FILENAME>.csv
 
     :param nii_folder: path to the folder containing all .nii.gz files with shape (X, Y, Z).
     :param output_path: path where the extracted annotations will be saved.
@@ -334,32 +426,55 @@ def extract_annotations_from_dataset(nii_folder: str,
                             "volume" -> generates a single CSV for the whole volume.
     :param data_mode: "center" -> saves the center (X, Y, Z) of the bounding box.
                       "box" -> saves the bounding box coordinates.
-    :param save_stats: if True, saves a CSV file with FILENAME and NUM_ANNOTATIONS information per case.
+    :param save_stats: if True, saves a CSV file with FILENAME and NUM_ANNOTATIONS information per case as <VIEW>_annotations_stats.csv.
 
     :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: if invalid view, saving_mode, extraction_mode, or data_mode is provided.
+    :raises ValueError: if an invalid view, saving_mode or data_mode is provided.
+
+    Example:
+
+        from nidataset.Slices import extract_annotations_from_dataset
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        view = "axial"
+
+        # run the function
+        extract_annotations_from_dataset(nii_folder=nii_folder, 
+                                         output_path=output_path, 
+                                         view=view, 
+                                         saving_mode="view",
+                                         extraction_mode="slice", 
+                                         data_mode="center",
+                                         save_stats=True)
     """
 
     # check if the dataset folder exists
     if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"error: the dataset folder '{nii_folder}' does not exist.")
+        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
 
     # get all .nii.gz files in the dataset folder
     nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
 
     # check if there are NIfTI files in the dataset folder
     if not nii_files:
-        raise FileNotFoundError(f"error: no .nii.gz files found in '{nii_folder}'.")
+        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
 
-    # validate input parameters
-    if view not in ["axial", "coronal", "sagittal"]:
-        raise ValueError("error: view must be 'axial', 'coronal', or 'sagittal'.")
+    # validate the view parameter
+    valid_views = {'axial', 'coronal', 'sagittal'}
+    if view not in valid_views:
+        raise ValueError(f"Error: The view must be one of {valid_views}. Got '{view}' instead.")
+    
+    # validate modes
     if saving_mode not in ["case", "view"]:
-        raise ValueError("error: saving_mode must be either 'case' or 'view'.")
+        raise ValueError(f"Error: saving_mode must be either 'case' or 'view'. Got '{saving_mode}' instead.")
     if extraction_mode not in ["slice", "volume"]:
-        raise ValueError("error: extraction_mode must be either 'slice' or 'volume'.")
+        raise ValueError(f"Error: extraction_mode must be either 'slice' or 'volume'. Got '{extraction_mode}' instead.")
     if data_mode not in ["center", "box"]:
-        raise ValueError("error: data_mode must be either 'center' or 'box'.")
+        raise ValueError(f"Error: data_mode must be either 'center' or 'box'. Got '{data_mode}' instead.")
     
     # create output dir if it does not exists
     if not os.path.exists(output_path):
@@ -393,8 +508,8 @@ def extract_annotations_from_dataset(nii_folder: str,
             unique_labels = np.unique(nii_data)
             num_annotations = len(unique_labels[unique_labels > 0])  # Count non-zero annotations
         except Exception as e:
-            tqdm.write(f"error processing {nii_file} for statistical analysis: {e}")
-            continue  # skip this file if an error occurs
+            tqdm.write(f"Error processing {nii_file} for statistical analysis: {e}")
+            continue  # skip this file if an Error occurs
         
         # keep track of the total number of annotations
         total_annotations += num_annotations

@@ -1,6 +1,7 @@
 import os
 from tqdm import tqdm
 import csv
+import subprocess
 
 import numpy as np
 import nibabel as nib
@@ -16,8 +17,10 @@ def swap_nifti_views(nii_path: str,
                      target_view: str, 
                      debug: bool = False) -> None:
     """
-    Swaps anatomical views in a NIfTI image by swapping axes, applying a 90-degree rotation, 
-    and updating the affine matrix correctly.
+    Swaps anatomical views in a NIfTI image by swapping axes, applying a 90-degree rotation, and updating the affine matrix correctly.
+    The output file is saved as:
+
+        <Nifti FILENAME>_swapped_<SOURCE VIEW>_to_<TARGE VIEW>.nii.gz
 
     :param nii_path: path to the input NIfTI (.nii.gz) file.
     :param output_path: path where the swapped NIfTI file will be saved.
@@ -27,6 +30,26 @@ def swap_nifti_views(nii_path: str,
 
     :raises FileNotFoundError: if the input file does not exist.
     :raises ValueError: if the file is empty, has invalid dimensions, or if the views are incorrect.
+
+    Example:
+
+        from nidataset.Volume import swap_nifti_views
+
+        # define paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        source_view = "axial"
+        target_view = "sagittal"
+
+        # run the function
+        swap_nifti_views(nii_path=nii_path,
+                         output_path=output_path,
+                         source_view=source_view,
+                         target_view=target_view,
+                         debug=True)
+
     """
 
     # check if the input file exists
@@ -35,7 +58,15 @@ def swap_nifti_views(nii_path: str,
 
     # ensure the file is a .nii.gz file
     if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
+        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
+
+    # validate the view parameters
+    valid_views = {'axial', 'coronal', 'sagittal'}
+    if source_view not in valid_views:
+        raise ValueError(f"Error: The source view must be one of {valid_views}. Got '{source_view}' instead.")
+    if target_view not in valid_views:
+        raise ValueError(f"Error: The target view must be one of {valid_views}. Got '{target_view}' instead.")
+
 
     # create output dir if it does not exist
     if not os.path.exists(output_path):
@@ -49,7 +80,7 @@ def swap_nifti_views(nii_path: str,
 
     # validate NIfTI data dimensions
     if nii_data.ndim != 3:
-        raise ValueError(f"Error: expected a 3D NIfTI file, but got shape {nii_data.shape}")
+        raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
 
     # Define valid swaps and corresponding axis reordering
     valid_swaps = {
@@ -119,7 +150,9 @@ def mip(nii_path: str,
         view: str = "axial",
         debug: bool = False) -> None:
     """
-    Generates a 3D Maximum Intensity Projection (MIP) from a NIfTI file.
+    Generates a 3D Maximum Intensity Projection (MIP) from a NIfTI file. Save the output file as:
+
+        <Nifti FILENAME>_mip_<VIEW>.nii.gz
 
     :param nii_path: path to the input .nii.gz file with shape (X, Y, Z).
     :param output_path: path where the MIP .nii.gz file will be saved.
@@ -130,6 +163,24 @@ def mip(nii_path: str,
 
     :raises FileNotFoundError: if the input NIfTI file does not exist.
     :raises ValueError: if the file is empty, has invalid dimensions, or if the axis is incorrect.
+
+    Example:
+
+        from nidataset.Volume import mip
+
+        # define paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        view = "axial"
+
+        # run the function
+        mip(nii_path=nii_path,
+            output_path=output_path,
+            window_size=20,
+            view=view,
+            debug=True)
     """
 
     # check if the input file exists
@@ -151,7 +202,7 @@ def mip(nii_path: str,
 
     # validate NIfTI data dimensions
     if nii_data.ndim != 3:
-        raise ValueError(f"Error: expected a 3D NIfTI file, but got shape {nii_data.shape}")
+        raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
 
     # define projection axis
     view_mapping = {"axial": 2, "coronal": 1, "sagittal": 0}
@@ -204,7 +255,9 @@ def mip_from_dataset(nii_folder: str,
                      saving_mode: str = "case", 
                      debug: bool = False) -> None:
     """
-    Generates 3D Maximum Intensity Projections (MIP) from all NIfTI files in a dataset folder, renamed with suffix 'mip' followed by the view.
+    Generates 3D Maximum Intensity Projections (MIP) from all NIfTI files in a dataset folder. Save the output file as:
+
+        <Nifti FILENAME>_mip_<VIEW>.nii.gz
 
     :param nii_folder: path to the folder containing .nii.gz files.
     :param output_path: path where the MIP .nii.gz files will be saved.
@@ -218,6 +271,26 @@ def mip_from_dataset(nii_folder: str,
 
     :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
     :raises ValueError: if an invalid view or saving_mode is provided.
+
+    Example:
+
+        from nidataset.Volume import mip_from_dataset
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
+        view = "axial"
+
+        # run the function
+        mip_from_dataset(nii_folder=nii_folder, 
+                 output_path=output_path, 
+                 window_size=20, 
+                 view=view, 
+                 saving_mode="case", 
+                 debug=True)
+
     """
 
     # check if the dataset folder exists
@@ -276,7 +349,9 @@ def extract_bounding_boxes(mask_path: str,
                            mask_value: int = 1, 
                            debug: bool = False) -> None:
     """
-    Extracts 3D bounding boxes from a segmentation mask and saves the bounding box annotation as a NIfTI file.
+    Extracts 3D bounding boxes from a segmentation mask and saves the bounding box annotation as a NIfTI file:
+
+        <Nifti FILENAME>_bounding_boxes.nii.gz
 
     :param mask_path: path to the input 3D segmentation mask (.nii.gz).
     :param output_path: path where the bounding box annotation will be saved.
@@ -287,6 +362,19 @@ def extract_bounding_boxes(mask_path: str,
 
     :raises FileNotFoundError: if the mask file does not exist.
     :raises ValueError: if the input file is not a valid 3D NIfTI image.
+
+    Example:
+
+        from nidataset.Volume import extract_bounding_boxes
+
+        # define paths
+        mask_path = "path/to/input_mask.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        extract_bounding_boxes(mask_path=mask_path, 
+                               output_path=output_path)
+
     """
 
     # check if the input mask file exists
@@ -359,7 +447,10 @@ def extract_bounding_boxes_from_dataset(mask_folder: str,
                                         save_stats: bool = True,
                                         debug: bool = False) -> None:
     """
-    Extracts 3D bounding boxes from all segmentation masks in a dataset folder and saves them as NIfTI files.
+    Extracts 3D bounding boxes from all segmentation masks in a dataset folder and saves them as NIfTI files:
+
+        <Nifti FILENAME>_bounding_boxes.nii.gz
+
     Also generates a statistics CSV file containing the number of bounding boxes per file.
 
     :param mask_folder: path to the folder containing .nii.gz segmentation masks.
@@ -371,6 +462,19 @@ def extract_bounding_boxes_from_dataset(mask_folder: str,
     :param debug: if True, prints additional information about bounding box extraction.
 
     :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
+
+    Example:
+
+        from nidataset.Volume import extract_bounding_boxes_from_dataset
+
+        # define paths
+        mask_folder = "path/to/masks"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        extract_bounding_boxes(mask_folder=mask_folder, 
+                               output_path=output_path)
+
     """
 
     # check if the dataset folder exists
@@ -445,7 +549,9 @@ def generate_brain_mask(nii_path: str,
                         closing_radius: int = 3,
                         debug: bool = False) -> None:
     """
-    Generates a brain mask from a brain CTA scan in NIfTI format.
+    Generates a brain mask from a brain CTA scan in NIfTI format saved as:
+
+        <Nifti FILENAME>_brain_mask.nii.gz
 
     :param nii_path: path to the input brain CTA .nii.gz file.
     :param output_path: path where the brain mask NIfTI file will be saved.
@@ -456,6 +562,20 @@ def generate_brain_mask(nii_path: str,
 
     :raises FileNotFoundError: if the input NIfTI file does not exist.
     :raises ValueError: if the file is empty or has invalid dimensions.
+
+    Example:
+
+        from nidataset.Volume import generate_brain_mask
+
+        # define paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        extract_bounding_boxes(mask_folder=mask_folder, 
+                               output_path=output_path)
+
+
     """
 
     # check if the input file exists
@@ -477,7 +597,7 @@ def generate_brain_mask(nii_path: str,
 
     # validate NIfTI data dimensions
     if nii_data.ndim != 3:
-        raise ValueError(f"Error: expected a 3D NIfTI file, but got shape {nii_data.shape}")
+        raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
 
     # validate threshold dimensions
     if len(threshold) != 2:
@@ -532,7 +652,9 @@ def generate_brain_mask_from_dataset(nii_folder: str,
                                      closing_radius: int = 3,
                                      debug: bool = False) -> None:
     """
-    Generates brain masks for all brain CTA scans in a dataset folder and saves them as NIfTI files.
+    Generates brain masks for all brain CTA scans in a dataset folder and saves them as NIfTI files with name:
+
+        <Nifti FILENAME>_brain_mask.nii.gz
 
     :param nii_folder: path to the folder containing .nii.gz brain CTA scans.
     :param output_path: path where the brain mask NIfTI files will be saved.
@@ -542,6 +664,19 @@ def generate_brain_mask_from_dataset(nii_folder: str,
     :param debug: if True, prints additional information about the mask generation.
 
     :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
+
+    Example:
+
+        from nidataset.Volume import generate_brain_mask_from_dataset
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        generate_brain_mask_from_dataset(nii_folder=nii_folder, 
+                                         output_path=output_path)
+
     """
 
     # check if the dataset folder exists
@@ -578,15 +713,30 @@ def crop_and_pad(nii_path: str,
                  target_shape: tuple = (128, 128, 128),
                  debug: bool = False) -> None:
     """
-    Finds the minimum bounding box around a CTA scan, resizes it to a target shape, and preserves spatial orientation.
+    Finds the minimum bounding box around a CTA scan, resizes it to a target shape, and preserves spatial orientation. Save the file with name:
 
-    :param nii_path: Path to the input CTA .nii.gz file.
-    :param output_path: Path where the cropped and padded CTA file will be saved.
-    :param target_shape: Desired (X, Y, Z) shape after padding or cropping.
-    :param debug: If True, prints additional information about the processing.
+        <Nifti FILENAME>_cropped_padded.nii.gz
 
-    :raises FileNotFoundError: If the input file does not exist.
-    :raises ValueError: If the file is empty or has invalid dimensions.
+    :param nii_path: path to the input CTA .nii.gz file.
+    :param output_path: path where the cropped and padded CTA file will be saved.
+    :param target_shape: desired (X, Y, Z) shape after padding or cropping.
+    :param debug: if True, prints additional information about the processing.
+
+    :raises FileNotFoundError: if the input file does not exist.
+    :raises ValueError: if the file is empty or has invalid dimensions.
+
+    Example:
+
+        from nidataset.Volume import crop_and_pad
+
+        # define paths
+        nii_path = "path/to/input_image.nii.gz"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        crop_and_pad(nii_path=nii_path, 
+                     output_path=output_path)
+
     """
 
     # check if the input file exists
@@ -609,7 +759,7 @@ def crop_and_pad(nii_path: str,
 
     # validate NIfTI data dimensions
     if nii_data.ndim != 3:
-        raise ValueError(f"Error: Expected a 3D NIfTI file, but got shape {nii_data.shape}")
+        raise ValueError(f"Error: Expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
 
     # validate target shape dimensions
     if len(target_shape) != 3:
@@ -689,7 +839,9 @@ def crop_and_pad_from_dataset(nii_folder: str,
                               target_shape: tuple = (128, 128, 128), 
                               save_stats: bool = False) -> None:
     """
-    Processes all CTA scans in a dataset folder, applies crop_and_pad, and saves results.
+    Processes all CTA scans in a dataset folder, applies crop_and_pad, and saves results with name:
+
+        <Nifti FILENAME>_cropped_padded.nii.gz
 
     :param nii_folder: Path to the folder containing .nii.gz CTA files.
     :param output_path: Path where the cropped and padded CTA files will be saved.
@@ -697,6 +849,18 @@ def crop_and_pad_from_dataset(nii_folder: str,
     :param save_stats: If True, saves a CSV file with FILENAME, ORIGINAL_SHAPE, FINAL_SHAPE.
 
     :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
+
+    Example:
+
+        from nidataset.Volume import crop_and_pad_from_dataset
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        crop_and_pad_from_dataset(nii_folder=nii_folder, 
+                                  output_path=output_path)
     """
 
     # check if the dataset folder exists
@@ -934,3 +1098,4 @@ def skull_CTA_from_dataset(nii_folder: str,
     if debug:
         print(f"Skull-stripping completed for all files in '{nii_folder}'.")
 
+    

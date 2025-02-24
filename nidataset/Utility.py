@@ -10,12 +10,27 @@ import scipy.ndimage as ndi
 def dataset_images_info(nii_folder: str,
                         output_path: str) -> None:
     """
-    Extracts metadata from all NIfTI files in a dataset and saves the results in a CSV file.
+    Extracts metadata from all NIfTI files in a dataset and saves the results in a CSV file named as dataset_images_info.csv with columns:
 
-    :param nii_folder: Path to the folder containing .nii.gz files.
-    :param output_path: Path where the metadata CSV file will be saved.
+        ["FILENAME", "SHAPE (X, Y, Z)", "VOXEL SIZE (mm)", "DATA TYPE", "MIN VALUE", "MAX VALUE", "BRAIN VOXELS", "BRAIN VOLUME (mm³)", "BBOX MIN (X, Y, Z)", "BBOX MAX (X, Y, Z)"]
 
-    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
+    :param nii_folder: path to the folder containing .nii.gz files.
+    :param output_path: path where the metadata CSV file will be saved.
+
+    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
+
+    Example:
+
+        from nidataset.Utility import dataset_images_info
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        dataset_images_info(nii_folder=nii_folder,
+                            output_path=output_path)
+        
     """
 
     # check if the dataset folder exists
@@ -93,13 +108,29 @@ def dataset_annotations_info(nii_folder: str,
                              output_path: str, 
                              annotation_value: int = 1) -> None:
     """
-    Extracts 3D bounding boxes from all NIfTI annotation files in a dataset and saves the results in a CSV file.
+    Extracts 3D bounding boxes from all NIfTI annotation files in a dataset and saves the results in a CSV file named as dataset_annotations_info.csv with columns:
 
-    :param nii_folder: Path to the folder containing .nii.gz annotation files.
-    :param output_path: Path where the bounding box CSV file will be saved.
-    :param annotation_value: Value in the mask representing the annotated region (default: 1).
+        ["FILENAME", "3D BOXES"]
 
-    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
+    :param nii_folder: path to the folder containing .nii.gz annotation files.
+    :param output_path: path where the bounding box CSV file will be saved.
+    :param annotation_value: value in the mask representing the annotated region (default: 1).
+
+    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
+
+    Example:
+
+        from nidataset.Utility import dataset_annotations_info
+
+        # define paths
+        nii_folder = "path/to/dataset"
+        output_path = "path/to/output_directory"
+
+        # run the function
+        dataset_annotations_info(nii_folder=nii_folder,
+                                 output_path=output_path,
+                                 annotation_value=1)
+
     """
 
     # check if the dataset folder exists
