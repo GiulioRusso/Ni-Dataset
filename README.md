@@ -86,6 +86,7 @@ Pillow>=9.4.0
 nibabel>=5.1.0
 numpy>=1.24.2
 scikit-image>=0.19.3
+pandas>=1.5.3
 tqdm>=4.67.1
 ```
 
