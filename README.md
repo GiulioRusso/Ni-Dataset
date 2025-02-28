@@ -90,7 +90,7 @@ Handles operations related to volumetric transformations and bounding box extrac
 ## 🚨 Requirements
 
 ```bash
-Python>=3.9.5
+Python>=3.8.0
 Pillow>=9.4.0
 nibabel>=5.1.0
 numpy>=1.24.2
