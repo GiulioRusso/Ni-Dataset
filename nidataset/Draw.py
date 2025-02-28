@@ -8,16 +8,17 @@ import pandas as pd
 def draw_boxes(df: pd.DataFrame,
                nii_path: str,
                output_path: str,
-               output_filename: str,
                intensity_based_on_score: bool = False,
                debug: bool = False) -> None:
     """
     Draws 3D bounding boxes on a nii.gz file. The coords have to be specified inside the input dataframe. A Nifti file is requested as reference and to draw the boxes aligned to this file.
+    The file is saved as:
 
+        <NIFTI FILENAME>_boxes.nii.gz
+    
     :param df: a dataframe containing columns: ['SCORE', 'X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX'] belonging to a 3D reference system.
     :param nii_path: path to the original nii.gz file from which metadata are taken (in order to keep alignment)
     :param output_path: output path where the nifti draw will be saved.
-    :param output_filename: name of the nifti draw file.
     :param intensity_based_on_score: if True, use the 'SCORE' column for box intensity with steps. Otherwise, use intensity 1.
     :param debug: if True, prints additional information about the draw.
 
@@ -47,13 +48,11 @@ def draw_boxes(df: pd.DataFrame,
         # specify input and output paths
         nii_path = "path/to/input_image.nii.gz"
         output_path = "path/to/output_directory"
-        output_filename = "output_with_boxes.nii.gz"
 
         # call the function
         draw_boxes(df=df,
                    nii_path=nii_path,
                    output_path=output_path,
-                   output_filename=output_filename,
                    intensity_based_on_score=True,
                    debug=True)
     """
@@ -105,9 +104,12 @@ def draw_boxes(df: pd.DataFrame,
         # draw the box
         output_data[int(x_min):int(x_max), int(y_min):int(y_max), int(z_min):int(z_max),] = intensity
 
+    # extract filename prefix
+    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+
     # create a new Nifti image
     nifti_draw = nib.Nifti1Image(output_data, affine)
-    nii_output_path =  os.path.join(output_path, output_filename)
+    nii_output_path =  os.path.join(output_path, f"{prefix}_boxes.nii.gz")
     nib.save(nifti_draw, nii_output_path)
 
     if debug:

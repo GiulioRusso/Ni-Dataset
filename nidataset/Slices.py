@@ -110,11 +110,11 @@ def extract_slices(nii_path: str,
         print(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'\nTotal {view} slices extracted: {num_slices}")
 
 
-def extract_slices_from_dataset(nii_folder: str, 
-                                output_path: str, 
-                                view: str = "axial", 
-                                saving_mode: str = "case", 
-                                save_stats: bool = False) -> None:
+def extract_slices_dataset(nii_folder: str, 
+                           output_path: str, 
+                           view: str = "axial", 
+                           saving_mode: str = "case", 
+                           save_stats: bool = False) -> None:
     """
     Extracts slices from all NIfTI files in a dataset folder and saves them as images .tif, following the structure
 
@@ -134,7 +134,7 @@ def extract_slices_from_dataset(nii_folder: str,
 
     Example:
 
-        from nidataset.Slices import extract_slices_from_dataset
+        from nidataset.Slices import extract_slices_dataset
 
         # define paths
         nii_folder = "path/to/dataset"
@@ -144,11 +144,11 @@ def extract_slices_from_dataset(nii_folder: str,
         view = "axial"
 
         # run the function
-        extract_slices_from_dataset(nii_folder=nii_folder, 
-                                    output_path=output_path, 
-                                    view=view, 
-                                    saving_mode="view",
-                                    save_stats=True)
+        extract_slices_dataset(nii_folder=nii_folder, 
+                               output_path=output_path, 
+                               view=view, 
+                               saving_mode="view",
+                               save_stats=True)
 
     """
 
@@ -399,13 +399,13 @@ def extract_annotations(nii_path: str,
             print(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'\nTotal slices with annotations extracted: {num_slices}")
 
 
-def extract_annotations_from_dataset(nii_folder: str, 
-                                     output_path: str, 
-                                     view: str = "axial",
-                                     saving_mode: str = "case", 
-                                     extraction_mode: str = "slice", 
-                                     data_mode: str = "center",
-                                     save_stats: bool = False) -> None:
+def extract_annotations_dataset(nii_folder: str, 
+                                output_path: str, 
+                                view: str = "axial",
+                                saving_mode: str = "case", 
+                                extraction_mode: str = "slice", 
+                                data_mode: str = "center",
+                                save_stats: bool = False) -> None:
     """
     Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV, based on the selected view and named with:
 
@@ -433,7 +433,7 @@ def extract_annotations_from_dataset(nii_folder: str,
 
     Example:
 
-        from nidataset.Slices import extract_annotations_from_dataset
+        from nidataset.Slices import extract_annotations_dataset
 
         # define paths
         nii_folder = "path/to/dataset"
@@ -443,13 +443,13 @@ def extract_annotations_from_dataset(nii_folder: str,
         view = "axial"
 
         # run the function
-        extract_annotations_from_dataset(nii_folder=nii_folder, 
-                                         output_path=output_path, 
-                                         view=view, 
-                                         saving_mode="view",
-                                         extraction_mode="slice", 
-                                         data_mode="center",
-                                         save_stats=True)
+        extract_annotations_dataset(nii_folder=nii_folder, 
+                                    output_path=output_path, 
+                                    view=view, 
+                                    saving_mode="view",
+                                    extraction_mode="slice", 
+                                    data_mode="center",
+                                    save_stats=True)
     """
 
     # check if the dataset folder exists
