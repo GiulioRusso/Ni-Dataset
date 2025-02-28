@@ -144,204 +144,6 @@ def swap_nifti_views(nii_path: str,
         print(f"Swapped NIfTI saved at: {swapped_filename}")
 
 
-def mip(nii_path: str,
-        output_path: str,
-        window_size: int = 10,
-        view: str = "axial",
-        debug: bool = False) -> None:
-    """
-    Generates a 3D Maximum Intensity Projection (MIP) from a NIfTI file. Save the output file as:
-
-        <Nifti FILENAME>_mip_<VIEW>.nii.gz
-
-    :param nii_path: path to the input .nii.gz file with shape (X, Y, Z).
-    :param output_path: path where the MIP .nii.gz file will be saved.
-    :param window_size: number of slices to merge for the MIP.
-    :param view: "axial" (default) -> performs MIP along the Z-axis.
-                 "coronal" -> performs MIP along the Y-axis.
-                 "sagittal" -> performs MIP along the X-axis.
-
-    :raises FileNotFoundError: if the input NIfTI file does not exist.
-    :raises ValueError: if the file is empty, has invalid dimensions, or if the axis is incorrect.
-
-    Example:
-
-        from nidataset.Volume import mip
-
-        # define paths
-        nii_path = "path/to/input_image.nii.gz"
-        output_path = "path/to/output_directory"
-
-        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
-        view = "axial"
-
-        # run the function
-        mip(nii_path=nii_path,
-            output_path=output_path,
-            window_size=20,
-            view=view,
-            debug=True)
-    """
-
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
-
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
-
-    # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    # load the NIfTI file
-    nii_img = nib.load(nii_path)
-    nii_data = nii_img.get_fdata()
-    affine = nii_img.affine  # preserve transformation matrix
-
-    # validate NIfTI data dimensions
-    if nii_data.ndim != 3:
-        raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
-
-    # define projection axis
-    view_mapping = {"axial": 2, "coronal": 1, "sagittal": 0}
-    if view not in view_mapping:
-        raise ValueError("Error: axis must be 'axial', 'coronal', or 'sagittal'.")
-    axis_index = view_mapping[view]
-
-    # define prefix as the nii.gz filename
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
-
-    # initialize MIP output volume
-    mip_data = np.zeros_like(nii_data)
-
-    # iterate over each slice along the chosen axis
-    tqdm_desc = f"Processing MIP ({view}, {window_size} slices) for {prefix}"
-    for i in tqdm(range(nii_data.shape[axis_index]), desc=tqdm_desc, unit="slice"):
-        # define the range of slices from i - window_size to i + window_size
-        start_slice = max(0, i - window_size)  # ensure range doesn't go below 0
-        end_slice = min(nii_data.shape[axis_index], i + window_size + 1)  # ensure range doesn't exceed data
-
-        # extract the subvolume for projection
-        if view == "axial":
-            subvolume = nii_data[:, :, start_slice:end_slice]
-            mip_result = np.max(subvolume, axis=2)
-            mip_data[:, :, i] = mip_result
-        elif view == "coronal":
-            subvolume = nii_data[:, start_slice:end_slice, :]
-            mip_result = np.max(subvolume, axis=1)
-            mip_data[:, i, :] = mip_result
-        elif view == "sagittal":
-            subvolume = nii_data[start_slice:end_slice, :, :]
-            mip_result = np.max(subvolume, axis=0)
-            mip_data[i, :, :] = mip_result
-
-    # create a new NIfTI image with the projected data
-    mip_image = nib.Nifti1Image(mip_data, affine)
-
-    # save the new image to a file
-    mip_filename = os.path.join(output_path, f"{prefix}_mip_{view}.nii.gz")
-    nib.save(mip_image, mip_filename)
-
-    if debug:
-        print(f"\nMIP saved at: {mip_filename}")
-
-
-def mip_from_dataset(nii_folder: str, 
-                     output_path: str, 
-                     window_size: int = 10, 
-                     view: str = "axial",
-                     saving_mode: str = "case", 
-                     debug: bool = False) -> None:
-    """
-    Generates 3D Maximum Intensity Projections (MIP) from all NIfTI files in a dataset folder. Save the output file as:
-
-        <Nifti FILENAME>_mip_<VIEW>.nii.gz
-
-    :param nii_folder: path to the folder containing .nii.gz files.
-    :param output_path: path where the MIP .nii.gz files will be saved.
-    :param window_size: number of slices to merge for the MIP.
-    :param view: "axial" (default) -> performs MIP along the Z-axis.
-                 "coronal" -> performs MIP along the Y-axis.
-                 "sagittal" -> performs MIP along the X-axis.
-    :param saving_mode: "case" -> creates a folder for each case.
-                        "view" -> saves all MIP files inside a single folder.
-    :param debug: if True, prints additional information about the process.
-
-    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: if an invalid view or saving_mode is provided.
-
-    Example:
-
-        from nidataset.Volume import mip_from_dataset
-
-        # define paths
-        nii_folder = "path/to/dataset"
-        output_path = "path/to/output_directory"
-
-        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
-        view = "axial"
-
-        # run the function
-        mip_from_dataset(nii_folder=nii_folder, 
-                 output_path=output_path, 
-                 window_size=20, 
-                 view=view, 
-                 saving_mode="case", 
-                 debug=True)
-
-    """
-
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
-
-    # get all .nii.gz files in the dataset folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-
-    # check if there are NIfTI files in the dataset folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
-
-    # validate input parameters
-    if view not in ["axial", "coronal", "sagittal"]:
-        raise ValueError("Error: view must be 'axial', 'coronal', or 'sagittal'.")
-    if saving_mode not in ["case", "view"]:
-        raise ValueError("Error: saving_mode must be either 'case' or 'view'.")
-
-    # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    # create a single folder for the chosen view if using "view" mode
-    if saving_mode == "view":
-        view_output_dir = os.path.join(output_path, view)
-        os.makedirs(view_output_dir, exist_ok=True)
-
-    # iterate over nii.gz files with tqdm progress bar
-    for nii_file in tqdm(nii_files, desc="Processing NIfTI files", unit="file"):
-        # nii.gz file path
-        nii_path = os.path.join(nii_folder, nii_file)
-
-        # extract the filename prefix (case ID)
-        prefix = os.path.basename(nii_path).replace(".nii.gz", "")
-
-        # update tqdm description with the current file prefix
-        tqdm.write(f"Processing: {prefix}")
-
-        # determine the appropriate output folder
-        if saving_mode == "case":
-            case_output_dir = os.path.join(output_path, prefix, view)
-            os.makedirs(case_output_dir, exist_ok=True)
-            mip(nii_path, case_output_dir, window_size, view, debug=False)
-        else:
-            mip(nii_path, view_output_dir, window_size, view, debug=False)
-
-    if debug:
-        print(f"\nMIP processing completed for all files in '{nii_folder}'")
-
-
 def extract_bounding_boxes(mask_path: str, 
                            output_path: str, 
                            voxel_size: tuple = (3.0, 3.0, 3.0), 
@@ -439,13 +241,13 @@ def extract_bounding_boxes(mask_path: str,
         print(f"\nInput file: '{mask_path}'\nOutput path: '{bbox_filename}'\nTotal bounding boxes extracted: {len(bounding_boxes)}")
 
 
-def extract_bounding_boxes_from_dataset(mask_folder: str, 
-                                        output_path: str, 
-                                        voxel_size: tuple = (3.0, 3.0, 3.0), 
-                                        volume_threshold: float = 1000.0, 
-                                        mask_value: int = 1,
-                                        save_stats: bool = True,
-                                        debug: bool = False) -> None:
+def extract_bounding_boxes_dataset(mask_folder: str, 
+                                   output_path: str, 
+                                   voxel_size: tuple = (3.0, 3.0, 3.0), 
+                                   volume_threshold: float = 1000.0, 
+                                   mask_value: int = 1,
+                                   save_stats: bool = True,
+                                   debug: bool = False) -> None:
     """
     Extracts 3D bounding boxes from all segmentation masks in a dataset folder and saves them as NIfTI files:
 
@@ -465,15 +267,15 @@ def extract_bounding_boxes_from_dataset(mask_folder: str,
 
     Example:
 
-        from nidataset.Volume import extract_bounding_boxes_from_dataset
+        from nidataset.Volume import extract_bounding_boxes_dataset
 
         # define paths
         mask_folder = "path/to/masks"
         output_path = "path/to/output_directory"
 
         # run the function
-        extract_bounding_boxes(mask_folder=mask_folder, 
-                               output_path=output_path)
+        extract_bounding_boxes_dataset(mask_folder=mask_folder, 
+                                       output_path=output_path)
 
     """
 
@@ -646,11 +448,11 @@ def generate_brain_mask(nii_path: str,
         print(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'\nBrain mask saved at: {mask_filename}")
 
 
-def generate_brain_mask_from_dataset(nii_folder: str, 
-                                     output_path: str, 
-                                     threshold: tuple = None,
-                                     closing_radius: int = 3,
-                                     debug: bool = False) -> None:
+def generate_brain_mask_dataset(nii_folder: str, 
+                                output_path: str, 
+                                threshold: tuple = None,
+                                closing_radius: int = 3,
+                                debug: bool = False) -> None:
     """
     Generates brain masks for all brain CTA scans in a dataset folder and saves them as NIfTI files with name:
 
@@ -667,15 +469,15 @@ def generate_brain_mask_from_dataset(nii_folder: str,
 
     Example:
 
-        from nidataset.Volume import generate_brain_mask_from_dataset
+        from nidataset.Volume import generate_brain_mask_dataset
 
         # define paths
         nii_folder = "path/to/dataset"
         output_path = "path/to/output_directory"
 
         # run the function
-        generate_brain_mask_from_dataset(nii_folder=nii_folder, 
-                                         output_path=output_path)
+        generate_brain_mask_dataset(nii_folder=nii_folder, 
+                                    output_path=output_path)
 
     """
 
@@ -834,10 +636,10 @@ def crop_and_pad(nii_path: str,
         print(f"Processed CTA Saved at: {processed_filename}")
 
 
-def crop_and_pad_from_dataset(nii_folder: str, 
-                              output_path: str, 
-                              target_shape: tuple = (128, 128, 128), 
-                              save_stats: bool = False) -> None:
+def crop_and_pad_dataset(nii_folder: str, 
+                         output_path: str, 
+                         target_shape: tuple = (128, 128, 128), 
+                         save_stats: bool = False) -> None:
     """
     Processes all CTA scans in a dataset folder, applies crop_and_pad, and saves results with name:
 
@@ -852,15 +654,15 @@ def crop_and_pad_from_dataset(nii_folder: str,
 
     Example:
 
-        from nidataset.Volume import crop_and_pad_from_dataset
+        from nidataset.Volume import crop_and_pad_dataset
 
         # define paths
         nii_folder = "path/to/dataset"
         output_path = "path/to/output_directory"
 
         # run the function
-        crop_and_pad_from_dataset(nii_folder=nii_folder, 
-                                  output_path=output_path)
+        crop_and_pad_dataset(nii_folder=nii_folder, 
+                             output_path=output_path)
     """
 
     # check if the dataset folder exists
@@ -929,173 +731,4 @@ def crop_and_pad_from_dataset(nii_folder: str,
         print(f"\nCrop and pad statistics saved in: '{stats_file}'")
 
 
-def skull_CTA(nii_path: str,
-              output_path: str,
-              f_value: float = 0.1,
-              clip_value: tuple = (0, 200),
-              cleanup: bool = False,
-              debug: bool = False) -> None:
-    """
-    Performs a skull-stripping pipeline designed for CTA (thresholding, smoothing, FSL BET, and clipping) on a single NIfTI file.
 
-    :implementation note:
-        CTAs has to be already centered to the brain area (no robust_fov is applied in this pipeline to ensure the input dimension is kept).
-        FSL command line needs to be installed via official site (https://fsl.fmrib.ox.ac.uk/fsldownloads_registration/).
-        The file that will use this function needs to be launched from terminal: `python3 main.py`, where `main.py` use this function.
-
-    :param nii_path: Path to the input .nii.gz file with shape (X, Y, Z).
-    :param output_path: Directory where intermediate and final outputs will be stored.
-    :param f_value: Fractional intensity threshold for BET (skull-stripping).
-    :param clip_value:   Minimum and maximum intensity values for clipping, e.g. (0, 200).
-    :param cleanup: If True, removes intermediate files (thresholded and skulled images). Mask and clipped brain outputs are always kept.
-    :param debug: If True, prints additional debugging information.
-
-    :raises FileNotFoundError: If nii_path does not exist.
-    :raises ValueError: If the file is not a .nii.gz, or if data is not 3D.
-    """
-
-    # validate input path
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
-
-    # ensure data type
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
-
-    # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    # cuild intermediate paths
-    base_name    = os.path.basename(nii_path).replace(".nii.gz", "")
-    th_img       = os.path.join(output_path, f"{base_name}_th.nii.gz")
-    th_sm_img    = os.path.join(output_path, f"{base_name}_th_sm.nii.gz")
-    th_sm_th_img = os.path.join(output_path, f"{base_name}_th_sm_th.nii.gz")
-    skulled_img  = os.path.join(output_path, f"{base_name}.skulled.nii.gz")
-    mask_img     = os.path.join(output_path, f"{base_name}.skulled_mask.nii.gz")
-    clipped_img  = os.path.join(output_path, f"{base_name}.skulled.clipped.nii.gz")
-
-    # threshold [0-100], smoothing, threshold [0-100]
-    try:
-        subprocess.run(["fslmaths", nii_path, "-thr", "0", "-uthr", "100", th_img], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        subprocess.run(["fslmaths", th_img, "-s", "1", th_sm_img], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        subprocess.run(["fslmaths", th_sm_img, "-thr", "0", "-uthr", "100", th_sm_th_img], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        # BET skull stripping (makes the skulled image + mask)
-        subprocess.run([
-            "bet", th_sm_th_img, skulled_img, "-R",
-            "-f", str(f_value), "-g", "0", "-m"
-        ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"FSL command failed for '{nii_path}' with error: {e.stderr.decode()}")
-
-    # load skulled image, clip intensities to desired values, save final .nii.gz
-    nii_skulled = nib.load(skulled_img)
-    skulled_data = nii_skulled.get_fdata()
-    clipped_data = np.clip(skulled_data, clip_value[0], clip_value[0])  # clip to desired values
-    clipped_nii  = nib.Nifti1Image(clipped_data, nii_skulled.affine, nii_skulled.header)
-    nib.save(clipped_nii, clipped_img)
-
-    # optional cleanup
-    if cleanup:
-        # remove intermediate files except mask and clipped images
-        for tmp_file in [th_img, th_sm_img, th_sm_th_img, skulled_img]:
-            if os.path.exists(tmp_file):
-                os.remove(tmp_file)
-
-        if debug:
-            print("Intermediate files have been removed.")
-
-    if debug:
-        print(f"\nSkull-stripped image saved at: {clipped_img}\n"
-            f"Skull mask saved at: {mask_img}")
-
-
-def skull_CTA_from_dataset(nii_folder: str,
-                           output_path: str,
-                           f_value: float = 0.1,
-                           clip_value: tuple = (0, 200),
-                           cleanup: bool = False,
-                           saving_mode: str = "case",
-                           debug: bool = False) -> None:
-    """
-    Performs a skull-stripping pipeline designed for CTA (thresholding, smoothing, FSL BET, and clipping) on the NIfTI files inside the input folder.
-
-    :implementation note:
-        CTAs has to be already centered to the brain area (no robust_fov is applied in this pipeline to ensure the input dimension is kept).
-        FSL command line needs to be installed via official site (https://fsl.fmrib.ox.ac.uk/fsldownloads_registration/).
-        The file that will use this function needs to be launched from terminal: `python3 main.py`, where `main.py` use this function.
-
-    :param nii_folder:  Directory containing .nii.gz files to be processed.
-    :param output_path: Directory where the skull-stripped .nii.gz files will be saved.
-    :param f_value:     Fractional intensity threshold for BET (skull-stripping).
-    :param clip_value:  Minimum and maximum intensity values for clipping, e.g. (0, 200).
-    :param cleanup:     If True, removes intermediate files (thresholded and skulled images). Mask and clipped images are always retained.
-    :param saving_mode: "case" -> creates a dedicated subfolder for each .nii.gz file.
-                        "view" -> saves all the results in a single subfolder called 'skulled'.
-    :param debug:       If True, prints additional information about the process.
-
-    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError:        If an invalid saving_mode is provided.
-    """
-
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
-
-    # retrieve all .nii.gz files
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
-
-    # validate saving_mode
-    if saving_mode not in ["case", "view"]:
-        raise ValueError("Error: saving_mode must be either 'case' or 'view'.")
-
-    # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    # for "view" mode, create a single folder to store all outputs
-    if saving_mode == "view":
-        view_output_dir = os.path.join(output_path, "skulled")
-        os.makedirs(view_output_dir, exist_ok=True)
-    else:
-        view_output_dir = None
-
-    # process files with a progress bar
-    for nii_file in tqdm(nii_files, desc="Skull-stripping NIfTI files", unit="file"):
-        nii_path = os.path.join(nii_folder, nii_file)
-        prefix   = os.path.splitext(os.path.splitext(nii_file)[0])[0]  # remove .nii.gz
-
-        if debug:
-            print(f"Processing: {prefix}")
-
-        # if saving_mode = "case", create one subfolder for each file
-        if saving_mode == "case":
-            case_output_dir = os.path.join(output_path, prefix)
-            os.makedirs(case_output_dir, exist_ok=True)
-            skull_CTA(
-                nii_path=nii_path,
-                output_path=case_output_dir,
-                f_value=f_value,
-                clip_value=clip_value,
-                cleanup=cleanup,
-                debug=debug
-            )
-
-        else:  # saving_mode = "view"
-            skull_CTA(
-                nii_path=nii_path,
-                output_path=view_output_dir,
-                f_value=f_value,
-                clip_value=clip_value,
-                cleanup=cleanup,
-                debug=debug
-            )
-
-    if debug:
-        print(f"Skull-stripping completed for all files in '{nii_folder}'.")
-
-    

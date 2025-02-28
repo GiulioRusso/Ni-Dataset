@@ -28,6 +28,7 @@ The package consists of the following Python modules:
 .
 ├── nidataset/                # The NIfTI dataset management package folder
 │   ├── Draw.py               # Functions for drawing and manipulating bounding boxes on NIfTI images.
+│   ├── Preprocessing.py      # Functions for preprocessing pipelines on NIfTI images.
 │   ├── Slices.py             # Functions for extracting slices and annotations from NIfTI files.
 │   ├── Utility.py            # Utility functions for dataset information statistics.
 │   ├── Volume.py             # Functions for NIfTI volume transformations and modifications.
@@ -43,40 +44,48 @@ The package consists of the following Python modules:
 
 ## 📦 Package organization
 
-### Draw 🧊 
-Handles operations related to bounding boxes.
+### Draw
+Handles operations related to drawing and coordinate systems.
 
-- **draw_boxes_on_nifti**: Draws 3D bounding boxes on a nii.gz file based on a provided tensor.
-- **from_2D_to_3D_coords**: Switches box or points coordinates between the 2D and 3D reference system based on the specified anatomical view.
+- **draw_boxes**: Draws 3D bounding boxes on a NIfTI file based on a provided dataframe.
+- **from_2D_to_3D_coords**: Converts box or point coordinates between the 2D and 3D reference systems based on the specified anatomical view.
 
-### Slices 🩻
-Handles operations related to slices.
+### Preprocessing
+Handles preprocessing operations on NIfTI files.
 
-- **extract_slices**: Extracts slices from a NIfTI file and saves them as images .tif, based on the selected view and named with the NIfTI filename with the progressive slice number.
-- **extract_slices_from_dataset**: Extracts slices from all NIfTI files in a dataset folder and saves them as images .tif, based on the selected view and named with the NIfTI filename with the progressive slice number.
-- **extract_annotations**: Extracts annotations from a NIfTI annotation file and saves them as CSV, based on the selected view and named with the NIfTI filename with the progressive slice number.
-- **extract_annotations_from_dataset**: Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV.
+- **skull_CTA**: Applies thresholding, smoothing, FSL BET, and clipping to remove the skull from a CTA scan.
+- **skull_CTA_dataset**: Applies the skull-stripping process to all CTA scans in a dataset folder.
+- **mip**: Generates a 3D Maximum Intensity Projection (MIP) from a NIfTI file.
+- **mip_dataset**: Generates MIPs from all NIfTI files in a dataset folder.
+- **resampling**: Resamples a single NIfTI file to a desired volume size.
+- **resampling_dataset**: Resamples all NIfTI files in a dataset folder.
+- **register_CTA**: Registers a CTA image to a template using mutual information-based registration.
+- **register_CTA_dataset**: Registers all CTA images in a dataset folder to a given template.
 
-### Utility 🛠️
-Handles operations related to utility.
+### Slices
+Handles operations related to extracting 2D slices from 3D NIfTI files.
+
+- **extract_slices**: Extracts slices from a NIfTI file and saves them as image files.
+- **extract_slices_dataset**: Extracts slices from all NIfTI files in a dataset folder.
+- **extract_annotations**: Extracts annotations from a NIfTI annotation file and saves them as CSV.
+- **extract_annotations_dataset**: Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV.
+
+### Utility
+Handles metadata extraction and dataset information.
 
 - **dataset_images_info**: Extracts metadata from all NIfTI files in a dataset and saves the results in a CSV file.
 - **dataset_annotations_info**: Extracts 3D bounding boxes from all NIfTI annotation files in a dataset and saves the results in a CSV file.
 
-### Volume 🧠
-Handles operations related to volume.
+### Volume
+Handles operations related to volumetric transformations and bounding box extraction.
 
-- **swap_nifti_views**: Swaps anatomical views in a NIfTI image by swapping axes, applying a 90-degree rotation.
-- **mip**: Generates a 3D Maximum Intensity Projection (MIP) from a NIfTI file.
-- **mip_from_dataset**: Generates 3D Maximum Intensity Projections (MIP) from all NIfTI files in a dataset folder, renamed with suffix 'mip' followed by the view.
-- **extract_bounding_boxes**: Extracts 3D bounding boxes from a segmentation mask and saves the bounding box annotation as a NIfTI file.
-- **extract_bounding_boxes_from_dataset**: Extracts 3D bounding boxes from all segmentation masks in a dataset folder and saves them as NIfTI files.
+- **swap_nifti_views**: Swaps anatomical views in a NIfTI image by swapping axes and applying a 90-degree rotation.
+- **extract_bounding_boxes**: Extracts 3D bounding boxes from a segmentation mask and saves them as a NIfTI file.
+- **extract_bounding_boxes_dataset**: Extracts 3D bounding boxes from all segmentation masks in a dataset folder.
 - **generate_brain_mask**: Generates a brain mask from a brain CTA scan in NIfTI format.
-- **generate_brain_mask_from_dataset**: Generates brain masks for all brain CTA scans in a dataset folder and saves them as NIfTI files.
+- **generate_brain_mask_dataset**: Generates brain masks for all brain CTA scans in a dataset folder.
 - **crop_and_pad**: Finds the minimum bounding box around a CTA scan, resizes it to a target shape, and preserves spatial orientation.
-- **crop_and_pad_from_dataset**: Processes all CTA scans in a dataset folder, applies crop_and_pad, and saves results.
-- **skull_CTA**: Skull the input CTA with thresholding, smoothing, FSL BET, and clipping pipeline.
-- **skull_CTA_from_dataset**: Skull the input CTA dataset with thresholding, smoothing, FSL BET, and clipping pipeline.
+- **crop_and_pad_dataset**: Processes all CTA scans in a dataset folder and applies the `crop_and_pad` operation.
 
 ## 🚨 Requirements
 
@@ -87,6 +96,8 @@ nibabel>=5.1.0
 numpy>=1.24.2
 scikit-image>=0.19.3
 pandas>=1.5.3
+SimpleITK>=2.2.1
+scipy>=1.10.0
 tqdm>=4.67.1
 ```
 
