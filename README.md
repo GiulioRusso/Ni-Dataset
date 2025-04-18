@@ -4,18 +4,14 @@
 
 This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data.
 
-## 🤝 Contribution
-👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
-
-## ⬇️ Installation
+## ⬇️ Installation and Import
 Now, this code is available with PyPI at https://pypi.org/project/nidataset/. The package can be installed with:
 
 ```bash
 pip install nidataset
 ```
 
-## 📥 Import
-Import the package as:
+and can be imported as:
 
 ```python
 import nidataset as nid
@@ -42,7 +38,15 @@ The package consists of the following Python modules:
 └── output/                   # Folder for output results
 ```
 
-## 📦 Package organization
+Run the application example with:
+
+```bash
+python3 example.py
+```
+
+This code will extract the slices and the annotations from a toy CTA and annotation bounding box. Then axial and coronal views are shifted.
+
+## 📦 Package documentation
 
 ### Draw
 Handles operations related to drawing and coordinate systems.
@@ -105,6 +109,9 @@ Install the requirements with:
 ```bash
 pip install -r requirements.txt
 ```
+
+## 🤝 Contribution
+👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
 
 ## ⚖️ License
 
