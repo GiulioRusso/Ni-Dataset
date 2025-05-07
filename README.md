@@ -1,4 +1,14 @@
-<center><h1><img align="center" src="./images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
+<div align="center">
+
+  <!-- headline -->
+  <center><h1><img align="center" src="./images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
+
+  <!-- PyPI badge -->
+  <a href="https://pypi.org/project/nidataset/">
+    <img src="https://badge.fury.io/py/nidataset.svg" alt="PyPI version">
+  </a>
+
+</div>
 
 <br>
 
