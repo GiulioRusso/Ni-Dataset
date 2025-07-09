@@ -954,7 +954,7 @@ generate_brain_mask(
 | ---------------- | --------------- | ------------------------------------------------------------------------- |
 | `nii_path`       | `str`           | Input CTA (`.nii.gz`).                                                    |
 | `output_path`    | `str`           | Folder for the mask.                                                      |
-| `threshold`      | `tuple \| None` | `(low, high)` intensity range; if `None`, an adaptive Otsu range is used. |
+| `threshold`      | `tuple` or `None` | `(low, high)` intensity range; if `None`, an adaptive Otsu range is used. |
 | `closing_radius` | `int`           | Radius (voxels) for morphological closing.                                |
 | `debug`          | `bool`          | Print threshold and path when **True**.                                   |
 
@@ -998,7 +998,7 @@ generate_brain_mask_dataset(
 | ---------------- | --------------- | ------------------------------------------ |
 | `nii_folder`     | `str`           | Directory with CTA volumes.                |
 | `output_path`    | `str`           | Destination for masks.                     |
-| `threshold`      | `tuple \| None` | Manual or automatic threshold (see above). |
+| `threshold`      | `tuple` or `None` | Manual or automatic threshold (see above). |
 | `closing_radius` | `int`           | Closing radius.                            |
 | `debug`          | `bool`          | Verbose logging.                           |
 
