@@ -77,7 +77,7 @@ draw_boxes(
 #### Parameters
 
 | Name                       | Type           | Description                                                                                                                                                     |
-| -------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|----------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `df`                       | `pd.DataFrame` | Bounding‑box coordinates. Must contain:<br>• `'X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX'`<br>• Optional `'SCORE'` if `intensity_based_on_score=True`. |
 | `nii_path`                 | `str`          | Path to the reference `.nii.gz` file used for shape and affine.                                                                                                 |
 | `output_path`              | `str`          | Directory in which to write the new file (created automatically if missing).                                                                                    |
