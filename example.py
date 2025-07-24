@@ -11,7 +11,7 @@ def main():
     # ------ #
     nifti_file = "./dataset/toy-CTA.nii.gz"
     nid.Slices.extract_slices(nii_path=nifti_file,
-                              output_dir="./output/extracted_slices/",
+                              output_path="./output/extracted_slices/",
                               view="axial",
                               debug=True)
     
@@ -20,7 +20,7 @@ def main():
     # ----------- #
     annotation_file = "./dataset/toy-annotation.nii.gz"
     nid.Slices.extract_annotations(nii_path=annotation_file,
-                                   output_dir="./output/annotations/",
+                                   output_path="./output/annotations/",
                                    view="axial",
                                    saving_mode="slice",
                                    data_mode="center",
@@ -30,7 +30,7 @@ def main():
     # VOLUME PROCESSING #
     # ----------------- #
     nid.Volume.swap_nifti_views(nii_path=nifti_file,
-                                output_dir="./output/processed_volumes/",
+                                output_path="./output/processed_volumes/",
                                 source_view="axial",
                                 target_view="coronal",
                                 debug=True)
