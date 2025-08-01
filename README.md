@@ -12,7 +12,11 @@
 
 <br>
 
-This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data.
+This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data. <br>
+
+<img align="center" src="./images/nidataset.png" width=1000px>
+
+<br>
 
 ## ⬇️ Installation and Import
 Now, this code is available with PyPI at https://pypi.org/project/nidataset/. The package can be installed with:
@@ -58,8 +62,6 @@ This code will extract the slices and the annotations from a toy CTA and annotat
 
 ## 📦 Package documentation
 
-### Draw
-
 ### `draw_boxes`
 
 Draw 3‑D bounding boxes on a reference **NIfTI** volume and save the result as `<filename>_boxes.nii.gz`.
@@ -77,7 +79,7 @@ draw_boxes(
 #### Parameters
 
 | Name                       | Type           | Description                                                                                                                                                     |
-|----------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `df`                       | `pd.DataFrame` | Bounding‑box coordinates. Must contain:<br>• `'X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX'`<br>• Optional `'SCORE'` if `intensity_based_on_score=True`. |
 | `nii_path`                 | `str`          | Path to the reference `.nii.gz` file used for shape and affine.                                                                                                 |
 | `output_path`              | `str`          | Directory in which to write the new file (created automatically if missing).                                                                                    |
