@@ -2,6 +2,8 @@ remote_theme: just-the-docs/just-the-docs
 plugins:
   - jekyll-remote-theme
 
-title: My Project
-logo: "/assets/images/logo.png"
+title: Ni-Dataset
+logo: "/images/logo.png"
 color_scheme: dark
+nav_order: 2
+has_toc: true
