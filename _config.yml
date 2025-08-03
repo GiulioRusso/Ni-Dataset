@@ -1,6 +1,7 @@
-# _config.yml
-remote_theme: jekyll/minima
+remote_theme: just-the-docs/just-the-docs
 plugins:
   - jekyll-remote-theme
-minima:
-  skin: dark # Or auto if you want it to switch with your system settings.
+
+title: My Project
+logo: "/assets/images/logo.png"
+color_scheme: dark
