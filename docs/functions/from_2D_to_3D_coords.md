@@ -4,7 +4,7 @@ parent: Package Functions
 nav_order: 2
 ---
 
-### `from_2D_to_3D_coords`
+# `from_2D_to_3D_coords`
 
 Convert 2‑D slice‑based coordinates to canonical **(X, Y, Z)** order for axial, coronal, or sagittal views.
 

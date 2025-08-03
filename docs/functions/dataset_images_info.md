@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: dataset_images_info
 parent: Package Functions
 nav_order: 15
 ---
 
-### `dataset_images_info`
+# `dataset_images_info`
 
 Collect metadata for every **NIfTI** file in a folder and save the summary as `dataset_images_info.csv`.
 

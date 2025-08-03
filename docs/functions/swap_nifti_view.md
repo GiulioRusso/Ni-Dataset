@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: swap_nifti_views
 parent: Package Functions
 nav_order: 17
 ---
 
-### `swap_nifti_views`
+# `swap_nifti_views`
 
 Re‑orient a 3‑D **NIfTI** volume from one anatomical view to another by permuting axes, rotating 90 °, and updating the affine. The result is saved as `<filename>_swapped_<source>_to_<target>.nii.gz`.
 

@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: generate_brain_mask
 parent: Package Functions
 nav_order: 20
 ---
 
-### `generate_brain_mask`
+# `generate_brain_mask`
 
 Create a rough brain mask from a CTA scan using intensity thresholding, hole filling, closing, and largest‑component selection. Saves `<filename>_brain_mask.nii.gz`.
 

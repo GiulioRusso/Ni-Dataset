@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: crop_and_pad
 parent: Package Functions
 nav_order: 22
 ---
 
-### `crop_and_pad`
+# `crop_and_pad`
 
 Crop a volume to its non‑zero bounding box, then symmetrically pad or further crop it to a fixed shape while preserving affine alignment. Saves `<filename>_cropped_padded.nii.gz`.
 

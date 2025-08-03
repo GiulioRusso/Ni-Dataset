@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: extract_bounding_boxes_dataset
 parent: Package Functions
 nav_order: 19
 ---
 
-### `extract_bounding_boxes_dataset`
+# `extract_bounding_boxes_dataset`
 
 Run `extract_bounding_boxes` on every mask in a folder and optionally record counts in `bounding_boxes_stats.csv`.
 

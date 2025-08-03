@@ -1,11 +1,11 @@
 ---
-title: skull_CTA
+title: mip_dataset
 parent: Package Functions
 nav_order: 6
 ---
 
 
-### `mip_dataset`
+# `mip_dataset`
 
 Create MIP volumes for every NIfTI file in a folder, optionally grouping outputs by case or by view.
 

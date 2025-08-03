@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: extract_bounding_boxes
 parent: Package Functions
 nav_order: 18
 ---
 
-### `extract_bounding_boxes`
+# `extract_bounding_boxes`
 
 Detect connected components in a segmentation mask, keep those above a volume threshold, and write a binary mask containing the 3‑D bounding boxes as `<filename>_bounding_boxes.nii.gz`.
 

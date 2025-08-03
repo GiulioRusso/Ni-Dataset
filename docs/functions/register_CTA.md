@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: register_CTA
 parent: Package Functions
 nav_order: 9
 ---
 
-### `register_CTA`
+# `register_CTA`
 
 Register a CTA image to a template using mutual‑information optimisation. Produces a registered volume, a Gaussian‑filtered intermediate, and a transformation `.tfm`.
 

@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: extract_annotations_dataset
 parent: Package Functions
 nav_order: 14
 ---
 
-### `extract_annotations_dataset`
+# `extract_annotations_dataset`
 
 Run `extract_annotations` over an entire dataset folder with optional per‑case or shared output, per‑slice or per‑volume extraction, and optional annotation statistics.
 
