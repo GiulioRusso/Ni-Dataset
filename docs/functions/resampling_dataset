@@ -1,0 +1,47 @@
+---
+title: skull_CTA
+parent: Package Functions
+nav_order: 8
+---
+
+### `resampling_dataset`
+
+Apply `resampling` to every `.nii.gz` file in a folder with optional per‑case or shared outputs.
+
+```python
+resampling_dataset(
+    nii_folder: str,
+    output_path: str,
+    desired_volume: tuple,
+    saving_mode: str = "case",
+    debug: bool = False
+) -> None
+```
+
+#### Parameters
+
+| Name             | Type    | Description                                                  |
+| ---------------- | ------- | ------------------------------------------------------------ |
+| `nii_folder`     | `str`   | Folder containing input volumes.                             |
+| `output_path`    | `str`   | Destination root.                                            |
+| `desired_volume` | `tuple` | Target size `(X, Y, Z)` for every case.                      |
+| `saving_mode`    | `str`   | `'case'` → sub‑folder per file; `'folder'` → all in one dir. |
+| `debug`          | `bool`  | Verbose logging.                                             |
+
+#### Returns
+
+`None` – resamples all files in `nii_folder`.
+
+#### Example
+
+```python
+from nidataset.preprocessing import resampling_dataset
+
+resampling_dataset(
+    nii_folder="dataset/cta/",
+    output_path="results/resampled/",
+    desired_volume=(224, 224, 128),
+    saving_mode="folder",
+    debug=False
+)
+```
