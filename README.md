@@ -19,7 +19,7 @@ This package provides a set of utilities for handling NIfTI datasets, including 
 <br>
 
 ## ⬇️ Installation and Import
-Now, this code is available with PyPI at https://pypi.org/project/nidataset/. The package can be installed with:
+Now, this code is available with PyPI [here](https://pypi.org/project/nidataset/). The package can be installed with:
 
 ```bash
 pip install nidataset
@@ -29,6 +29,25 @@ and can be imported as:
 
 ```python
 import nidataset as nid
+```
+
+## 🚨 Requirements
+
+```bash
+Python>=3.8.0
+Pillow>=9.4.0
+nibabel>=5.1.0
+numpy>=1.24.2
+scikit-image>=0.19.3
+pandas>=1.5.3
+SimpleITK>=2.2.1
+scipy>=1.10.0
+tqdm>=4.67.1
+```
+
+Install the requirements with:
+```bash
+pip install -r requirements.txt
 ```
 
 ## 📂 Project Organization
@@ -1100,25 +1119,6 @@ crop_and_pad_dataset(
     target_shape=(128,128,128),
     save_stats=True
 )
-```
-
-## 🚨 Requirements
-
-```bash
-Python>=3.8.0
-Pillow>=9.4.0
-nibabel>=5.1.0
-numpy>=1.24.2
-scikit-image>=0.19.3
-pandas>=1.5.3
-SimpleITK>=2.2.1
-scipy>=1.10.0
-tqdm>=4.67.1
-```
-
-Install the requirements with:
-```bash
-pip install -r requirements.txt
 ```
 
 ## 🤝 Contribution

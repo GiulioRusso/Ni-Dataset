@@ -20,3 +20,11 @@ nav_order: 1
 This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data. <br>
 
 <img align="center" src="./images/nidataset.png" width=1000px>
+
+
+## 🤝 Contribution
+👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
+
+## ⚖️ License
+
+MIT License
