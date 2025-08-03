@@ -1,11 +1,11 @@
 ---
-title: skull_CTA
+title: resampling
 parent: Package Functions
 nav_order: 7
 ---
 
 
-### `resampling`
+# `resampling`
 
 Resample a volume to a specified voxel grid and save as `<filename>_resampled.nii.gz`.
 

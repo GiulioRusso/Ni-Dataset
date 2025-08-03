@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: skull_CTA_dataset
 parent: Package Functions
 nav_order: 4
 ---
 
-### `skull_CTA_dataset`
+# `skull_CTA_dataset`
 
 Run the same skull‑stripping pipeline over every `.nii.gz` file in a folder, with optional per‑case or shared output layout.
 

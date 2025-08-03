@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: resampling_dataset
 parent: Package Functions
 nav_order: 8
 ---
 
-### `resampling_dataset`
+# `resampling_dataset`
 
 Apply `resampling` to every `.nii.gz` file in a folder with optional per‑case or shared outputs.
 

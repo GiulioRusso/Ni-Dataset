@@ -4,7 +4,7 @@ parent: Package Functions
 nav_order: 3
 ---
 
-### `skull_CTA`
+# `skull_CTA`
 
 Apply a CTA‑oriented skull‑stripping pipeline (threshold → smoothing → FSL BET → clipping) to a single **NIfTI** file. The result is written as `<filename>.skulled.clipped.nii.gz` plus a corresponding mask.
 

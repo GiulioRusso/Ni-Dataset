@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: extract_slices_dataset
 parent: Package Functions
 nav_order: 12
 ---
 
-### `extract_slices_dataset`
+# `extract_slices_dataset`
 
 Batch‑extract slices from every `.nii.gz` file in a folder, with optional per‑case or shared output layout and optional per‑case slice statistics.
 

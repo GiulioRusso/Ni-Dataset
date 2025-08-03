@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: generate_brain_mask_dataset
 parent: Package Functions
 nav_order: 21
 ---
 
-### `generate_brain_mask_dataset`
+# `generate_brain_mask_dataset`
 
 Produce brain masks for every CTA scan in a directory.
 

@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: crop_and_pad_dataset
 parent: Package Functions
 nav_order: 23
 ---
 
-### `crop_and_pad_dataset`
+# `crop_and_pad_dataset`
 
 Apply `crop_and_pad` to every file in a folder and optionally record original/final shapes in `crop_pad_stats.csv`.
 

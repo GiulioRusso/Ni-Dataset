@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: mip
 parent: Package Functions
 nav_order: 5
 ---
 
-### `mip`
+# `mip`
 
 Generate a sliding‑window 3‑D Maximum Intensity Projection (MIP) from a single volume and save it as `<filename>_mip_<view>.nii.gz`.
 

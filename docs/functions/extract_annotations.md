@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: extract_annotations
 parent: Package Functions
 nav_order: 13
 ---
 
-### `extract_annotations`
+# `extract_annotations`
 
 Export bounding‑box annotations from a 3‑D label map into CSV files. Supports per‑slice or per‑volume output and either box centers or full coordinates.
 

@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: skuextract_slicesll_CTA
 parent: Package Functions
 nav_order: 11
 ---
 
-### `extract_slices`
+# `extract_slices`
 
 Extract all slices from a 3‑D **NIfTI** volume and save them as `.tif` images using the pattern
 

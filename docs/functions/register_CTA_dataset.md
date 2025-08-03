@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: register_CTA_dataset
 parent: Package Functions
 nav_order: 10
 ---
 
-### `register_CTA_dataset`
+# `register_CTA_dataset`
 
 Batch‑register every CTA volume in a folder to a template, with optional per‑case output grouping.
 

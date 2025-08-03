@@ -4,8 +4,7 @@ parent: Package Functions
 nav_order: 1
 ---
 
-### `draw_boxes`
-
+# `draw_boxes`
 
 Draw 3‑D bounding boxes on a reference **NIfTI** volume and save the result as `<filename>_boxes.nii.gz`.
 

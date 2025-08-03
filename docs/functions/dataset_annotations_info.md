@@ -1,10 +1,10 @@
 ---
-title: skull_CTA
+title: dataset_annotations_info
 parent: Package Functions
 nav_order: 16
 ---
 
-### `dataset_annotations_info`
+# `dataset_annotations_info`
 
 Extract 3‑D bounding boxes of a specific label value from every annotation map in a folder and save them as `dataset_annotations_info.csv`.
 
