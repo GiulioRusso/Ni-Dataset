@@ -1,7 +1,6 @@
 ---
 title: ⬇️ Installation and Import
-parent: Home
-nav_order: 1
+nav_order: 2
 ---
 
 # ⬇️ Installation and Import

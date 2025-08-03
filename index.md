@@ -1,7 +1,6 @@
 ---
 title: Home
 nav_order: 1
-has_children: true
 ---
 
 <div align="center">

@@ -1,8 +1,9 @@
 ---
 title: draw_boxes
-parent: Package Functions
+parent: 📦 Package Functions
 nav_order: 1
 ---
+
 # `draw_boxes`
 
 

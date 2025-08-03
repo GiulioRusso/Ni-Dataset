@@ -1,7 +1,6 @@
 ---
 title: 📦 Package Functions
-parent: Home
-nav_order: 2
+nav_order: 3
 has_children: true
 ---
 # Package Functions
