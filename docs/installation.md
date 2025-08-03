@@ -1,5 +1,5 @@
 ---
-title: ⬇️ Installation and Import
+title: Installation and Import
 nav_order: 2
 ---
 
