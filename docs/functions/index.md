@@ -1,5 +1,5 @@
 ---
-title: 📦 Package Functions
+title: Package Functions
 nav_order: 3
 has_children: true
 ---

@@ -1,6 +1,6 @@
 ---
 title: skull_CTA
-parent: 📦 Package Functions
+parent: Package Functions
 nav_order: 3
 ---
 
