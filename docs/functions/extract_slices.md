@@ -1,5 +1,5 @@
 ---
-title: skuextract_slicesll_CTA
+title: extract_slices
 parent: Package Functions
 nav_order: 11
 ---
