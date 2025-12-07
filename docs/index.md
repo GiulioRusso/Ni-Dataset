@@ -6,7 +6,7 @@ nav_order: 1
 <div align="center">
 
   <!-- headline -->
-  <center><h1><img align="center" src="./docs/images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
+  <center><h1><img align="center" src="./images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
 
   <!-- PyPI badges -->
   <a href="https://pypi.org/project/nidataset/">
