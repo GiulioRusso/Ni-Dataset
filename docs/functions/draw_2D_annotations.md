@@ -252,7 +252,7 @@ print(f"  Columns: {annotations.columns.tolist()}")
 
 # Check for issues
 if annotations.isnull().any().any():
-    print("  ⚠️ Warning: Contains NaN values")
+    print("  Warning: Contains NaN values")
 else:
     print("  ✓ No NaN values")
 
