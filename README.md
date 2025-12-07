@@ -65,11 +65,11 @@ The package consists of the following Python modules:
 ```bash
 .
 ├── nidataset/                # The NIfTI dataset management package folder
-│   ├── Draw.py               # Functions for drawing and manipulating bounding boxes on NIfTI images.
-│   ├── Preprocessing.py      # Functions for preprocessing pipelines on NIfTI images.
-│   ├── Slices.py             # Functions for extracting slices and annotations from NIfTI files.
-│   ├── Utility.py            # Utility functions for dataset information statistics.
-│   └── Volume.py             # Functions for NIfTI volume transformations and modifications.
+│   ├── draw.py               # Functions for drawing and manipulating bounding boxes on NIfTI images.
+│   ├── preprocessing.py      # Functions for preprocessing pipelines on NIfTI images.
+│   ├── slices.py             # Functions for extracting slices and annotations from NIfTI files.
+│   ├── utility.py            # Utility functions for dataset information statistics.
+│   └── volume.py             # Functions for NIfTI volume transformations and modifications.
 │
 ├── example.py                # The script that demonstrates usage of the package.
 │
