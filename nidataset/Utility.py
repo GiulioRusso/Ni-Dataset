@@ -10,27 +10,23 @@ import scipy.ndimage as ndi
 def dataset_images_info(nii_folder: str,
                         output_path: str) -> None:
     """
-    Extracts metadata from all NIfTI files in a dataset and saves the results in a CSV file named as dataset_images_info.csv with columns:
+    Extracts metadata from all NIfTI files in a dataset and saves it as a CSV 
+    named 'dataset_images_info.csv'. Extracted metadata includes image shape, 
+    voxel size, data type, intensity range, brain voxel count, brain volume, 
+    and bounding box coordinates of nonzero voxels.
 
-        ["FILENAME", "SHAPE (X, Y, Z)", "VOXEL SIZE (mm)", "DATA TYPE", "MIN VALUE", "MAX VALUE", "BRAIN VOXELS", "BRAIN VOLUME (mm³)", "BBOX MIN (X, Y, Z)", "BBOX MAX (X, Y, Z)"]
+    Columns:
+        ["FILENAME", "SHAPE (X, Y, Z)", "VOXEL SIZE (mm)", "DATA TYPE", 
+         "MIN VALUE", "MAX VALUE", "BRAIN VOXELS", "BRAIN VOLUME (mm³)", 
+         "BBOX MIN (X, Y, Z)", "BBOX MAX (X, Y, Z)"]
 
-    :param nii_folder: path to the folder containing .nii.gz files.
-    :param output_path: path where the metadata CSV file will be saved.
+    :param nii_folder: Path to the folder containing .nii.gz files.
+    :param output_path: Path where the metadata CSV file will be saved.
 
-    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
+    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
 
     Example:
-
-        from nidataset.Utility import dataset_images_info
-
-        # define paths
-        nii_folder = "path/to/dataset"
-        output_path = "path/to/output_directory"
-
-        # run the function
-        dataset_images_info(nii_folder=nii_folder,
-                            output_path=output_path)
-        
+        >>> dataset_images_info("path/to/dataset", "path/to/output_directory")
     """
 
     # check if the dataset folder exists
@@ -108,29 +104,23 @@ def dataset_annotations_info(nii_folder: str,
                              output_path: str, 
                              annotation_value: int = 1) -> None:
     """
-    Extracts 3D bounding boxes from all NIfTI annotation files in a dataset and saves the results in a CSV file named as dataset_annotations_info.csv with columns:
+    Extracts 3D bounding boxes from all NIfTI annotation files in a dataset 
+    and saves them as a CSV named 'dataset_annotations_info.csv'.
 
-        ["FILENAME", "3D BOXES"]
+    Columns:
+        ["FILENAME", "3D_BOXES"]
 
-    :param nii_folder: path to the folder containing .nii.gz annotation files.
-    :param output_path: path where the bounding box CSV file will be saved.
-    :param annotation_value: value in the mask representing the annotated region (default: 1).
+    Each 3D box is represented as a list of 6 integers: 
+        [X_MIN, Y_MIN, Z_MIN, X_MAX, Y_MAX, Z_MAX]
 
-    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
+    :param nii_folder: Path to the folder containing .nii.gz annotation files.
+    :param output_path: Path where the bounding box CSV file will be saved.
+    :param annotation_value: Value in the mask representing the annotated region (default: 1).
+
+    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
 
     Example:
-
-        from nidataset.Utility import dataset_annotations_info
-
-        # define paths
-        nii_folder = "path/to/dataset"
-        output_path = "path/to/output_directory"
-
-        # run the function
-        dataset_annotations_info(nii_folder=nii_folder,
-                                 output_path=output_path,
-                                 annotation_value=1)
-
+        >>> dataset_annotations_info("path/to/masks", "path/to/output_directory", annotation_value=1)
     """
 
     # check if the dataset folder exists
@@ -192,7 +182,7 @@ def dataset_annotations_info(nii_folder: str,
     # write bounding box data to CSV file
     with open(output_csv, mode="w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["FILENAME", "3D BOXES"])
+        writer.writerow(["FILENAME", "3D_BOXES"])
         
         for filename, boxes in bounding_boxes_info:
             writer.writerow([filename, boxes])

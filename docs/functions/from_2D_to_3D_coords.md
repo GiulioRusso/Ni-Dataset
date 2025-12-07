@@ -19,12 +19,12 @@ from_2D_to_3D_coords(
 
 | Name   | Type           | Description                                                                                                                                                           |
 | ------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `df`   | `pd.DataFrame` | Accepted layouts:<br>• **3‑column** – `['X', 'Y', 'SLICE NUMBER']`<br>• **6‑column** – `['X MIN', 'Y MIN', 'SLICE NUMBER MIN', 'X MAX', 'Y MAX', 'SLICE NUMBER MAX']` |
+| `df`   | `pd.DataFrame` | Accepted layouts:<br>• **3‑column** – `['X', 'Y', 'SLICE NUMBER']`<br>• **6‑column** – `['X_MIN', 'Y_MIN', 'SLICE_NUMBER_MIN', 'X_MAX', 'Y_MAX', 'SLICE_NUMBER_MAX']` |
 | `view` | `str`          | One of `'axial'`, `'coronal'`, `'sagittal'`.                                                                                                                          |
 
 #### Returns
 
-`pd.DataFrame` – Copy of `df` with columns renamed to `['X', 'Y', 'Z']` **or** `['X MIN', 'Y MIN', 'Z MIN', 'X MAX', 'Y MAX', 'Z MAX']`, reordered so that **Z** is the slice index.
+`pd.DataFrame` – Copy of `df` with columns renamed to `['X', 'Y', 'Z']` **or** `['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']`, reordered so that **Z** is the slice index.
 
 #### Example
 
@@ -33,8 +33,8 @@ import pandas as pd
 from nidataset.draw import from_2D_to_3D_coords
 
 axial_boxes = pd.DataFrame({
-    "X MIN": [10], "Y MIN": [15], "SLICE NUMBER MIN": [5],
-    "X MAX": [20], "Y MAX": [25], "SLICE NUMBER MAX": [10]
+    "X_MIN": [10], "Y_MIN": [15], "SLICE_NUMBER_MIN": [5],
+    "X_MAX": [20], "Y_MAX": [25], "SLICE_NUMBER_MAX": [10]
 })
 
 boxes_3d = from_2D_to_3D_coords(axial_boxes, view="axial")

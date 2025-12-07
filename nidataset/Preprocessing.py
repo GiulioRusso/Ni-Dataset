@@ -14,22 +14,68 @@ def skull_CTA(nii_path: str,
               cleanup: bool = False,
               debug: bool = False) -> None:
     """
-    Performs a skull-stripping pipeline designed for CTA (thresholding, smoothing, FSL BET, and clipping) on a single NIfTI file.
+    Perform a CTA-specific skull-stripping pipeline on a single NIfTI file.
 
-    :implementation note:
-        CTAs has to be already centered to the brain area (no robust_fov is applied in this pipeline to ensure the input dimension is kept).
-        FSL command line needs to be installed via official site (https://fsl.fmrib.ox.ac.uk/fsldownloads_registration/).
-        The file that will use this function needs to be launched from terminal: `python3 main.py`, where `main.py` use this function.
+    The pipeline applies intensity thresholding, Gaussian smoothing, a second
+    thresholding step, and finally FSL BET for skull-stripping. The resulting
+    skull-stripped image is intensity-clipped to the specified range.  
+    Intermediate images can optionally be removed.
 
-    :param nii_path: Path to the input .nii.gz file with shape (X, Y, Z).
-    :param output_path: Directory where intermediate and final outputs will be stored.
-    :param f_value: Fractional intensity threshold for BET (skull-stripping).
-    :param clip_value: Minimum and maximum intensity values for clipping, e.g. (0, 200).
-    :param cleanup: If True, removes intermediate files (thresholded and skulled images). Mask and clipped brain outputs are always kept.
-    :param debug: If True, prints additional debugging information.
+    .. note::
+       - The input CTA volume must already be cropped or centered around the
+         brain region. ``robust_fov`` is intentionally **not** applied to ensure
+         that the input dimensions remain unchanged.
+       - This function requires a local FSL installation and access to the
+         command-line tools ``fslmaths`` and ``bet``.
+       - The script using this function must be executed from a terminal
+         (e.g., ``python3 main.py``) so that FSL's environment variables are
+         correctly detected.
 
-    :raises FileNotFoundError: If nii_path does not exist.
-    :raises ValueError: If the file is not a .nii.gz, or if data is not 3D.
+    :param nii_path:
+        Path to the input ``.nii.gz`` file. Must contain a 3D volume of shape
+        ``(X, Y, Z)``.
+
+    :param output_path:
+        Directory where all intermediate and final outputs will be stored.
+        Will be created if it does not exist.
+
+    :param f_value:
+        Fractional intensity threshold passed to BET. Typical values range
+        from ``0.1`` (more inclusive brain mask) to ``0.3`` (more conservative).
+
+    :param clip_value:
+        Tuple ``(min, max)`` defining the intensity range used to clip the
+        skull-stripped volume (e.g., ``(0, 200)``).
+
+    :param cleanup:
+        If ``True``, removes intermediate files (thresholded and smoothed
+        images). The final skull-stripped mask and clipped brain image
+        are always preserved.
+
+    :param debug:
+        If ``True``, prints detailed information about each processing step.
+
+    :raises FileNotFoundError:
+        If ``nii_path`` does not exist.
+
+    :raises ValueError:
+        If the file is not a ``.nii.gz`` volume or if the data is not 3D.
+
+    :raises RuntimeError:
+        If any FSL command fails.
+
+    Example
+    -------
+    >>> from nidataset.Processing import skull_CTA
+    >>>
+    >>> skull_CTA(
+    ...     nii_path="patient001_CTA.nii.gz",
+    ...     output_path="./processed/",
+    ...     f_value=0.2,
+    ...     clip_value=(0, 180),
+    ...     cleanup=True,
+    ...     debug=True
+    ... )
     """
 
     # validate input path
@@ -98,24 +144,69 @@ def skull_CTA_dataset(nii_folder: str,
                       saving_mode: str = "case",
                       debug: bool = False) -> None:
     """
-    Performs a skull-stripping pipeline designed for CTA (thresholding, smoothing, FSL BET, and clipping) on the NIfTI files inside the input folder.
+    Apply a CTA-specific skull-stripping pipeline to all NIfTI files inside a folder.
 
-    :implementation note:
-        CTAs has to be already centered to the brain area (no robust_fov is applied in this pipeline to ensure the input dimension is kept).
-        FSL command line needs to be installed via official site (https://fsl.fmrib.ox.ac.uk/fsldownloads_registration/).
-        The file that will use this function needs to be launched from terminal: `python3 main.py`, where `main.py` use this function.
+    This function iterates through all ``.nii.gz`` files in the input directory
+    and applies the ``skull_CTA`` processing pipeline, which includes
+    intensity thresholding, Gaussian smoothing, BET-based skull-stripping,
+    and intensity clipping. Processed files can be saved either in a dedicated
+    subdirectory per case or all together in a single output folder.
 
-    :param nii_folder: Directory containing .nii.gz files to be processed.
-    :param output_path: Directory where the skull-stripped .nii.gz files will be saved.
-    :param f_value: Fractional intensity threshold for BET (skull-stripping).
-    :param clip_value: Minimum and maximum intensity values for clipping, e.g. (0, 200).
-    :param cleanup: If True, removes intermediate files (thresholded and skulled images). Mask and clipped images are always retained.
-    :param saving_mode: "case" -> creates a dedicated subfolder for each .nii.gz file.
-                        "folder" -> saves all the results in a single subfolder.
-    :param debug: If True, prints additional information about the process.
+    .. note::
+       - All CTA volumes must already be centered on the brain region.
+         ``robust_fov`` is intentionally **not** applied to preserve
+         the original spatial dimensions.
+       - FSL must be installed locally and accessible via command line
+         (tools used: ``fslmaths``, ``bet``).
+       - When using FSL, scripts must be executed from a terminal to ensure
+         correct environment variable detection (e.g., ``python3 main.py``).
 
-    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: If an invalid saving_mode is provided.
+    :param nii_folder:
+        Directory containing the input ``.nii.gz`` files.
+
+    :param output_path:
+        Directory where processed outputs will be saved. Created if missing.
+
+    :param f_value:
+        Fractional intensity threshold passed to ``bet`` for skull-stripping.
+
+    :param clip_value:
+        Tuple ``(min, max)`` defining the intensity clipping range applied
+        to the skull-stripped volume.
+
+    :param cleanup:
+        If ``True``, deletes intermediate thresholded and smoothed images.
+        The mask and the final clipped CTA image are always retained.
+
+    :param saving_mode:
+        Determines how outputs are organized:
+        
+        - ``"case"`` — creates one subfolder per input file (recommended for datasets).  
+        - ``"folder"`` — saves all processed outputs into a single directory.
+
+    :param debug:
+        If ``True``, prints detailed information about the skull-stripping
+        process for each file.
+
+    :raises FileNotFoundError:
+        If ``nii_folder`` does not exist or contains no ``.nii.gz`` files.
+
+    :raises ValueError:
+        If ``saving_mode`` is not ``"case"`` or ``"folder"``.
+
+    Example
+    -------
+    >>> from nidataset.Processing import skull_CTA_dataset
+    >>>
+    >>> skull_CTA_dataset(
+    ...     nii_folder="./CTA_raw/",
+    ...     output_path="./CTA_processed/",
+    ...     f_value=0.15,
+    ...     clip_value=(0, 180),
+    ...     cleanup=True,
+    ...     saving_mode="case",
+    ...     debug=True
+    ... )
     """
 
     # check if the dataset folder exists
@@ -183,37 +274,62 @@ def mip(nii_path: str,
         view: str = "axial",
         debug: bool = False) -> None:
     """
-    Generates a 3D Maximum Intensity Projection (MIP) from a NIfTI file. Save the output file as:
+    Generate a sliding-window Maximum Intensity Projection (MIP) from a 3D NIfTI volume.
 
-        <Nifti FILENAME>_mip_<VIEW>.nii.gz
+    For each slice along the chosen anatomical axis, a local neighborhood of size
+    ``2 * window_size + 1`` is extracted and collapsed using a max-intensity
+    projection. The output is a 3D volume of identical shape to the input, where
+    every slice represents a local MIP centered on that slice index.
 
-    :param nii_path: path to the input .nii.gz file with shape (X, Y, Z).
-    :param output_path: path where the MIP .nii.gz file will be saved.
-    :param window_size: number of slices to merge for the MIP.
-    :param view: "axial" (default) -> performs MIP along the Z-axis.
-                 "coronal" -> performs MIP along the Y-axis.
-                 "sagittal" -> performs MIP along the X-axis.
+    The resulting file is saved as:
 
-    :raises FileNotFoundError: if the input NIfTI file does not exist.
-    :raises ValueError: if the file is empty, has invalid dimensions, or if the axis is incorrect.
+        ``<FILENAME>_mip_<VIEW>.nii.gz``
 
-    Example:
+    .. note::
+       - This is **not** a global projection. Each output slice is generated
+         using a local sliding window centered around its index.
+       - The input NIfTI must contain a single 3D volume (shape ``(X, Y, Z)``).
+       - The affine transformation of the input NIfTI is preserved.
 
-        from nidataset.Preprocessing import mip
+    :param nii_path:
+        Path to the input ``.nii.gz`` file. Must contain a 3D CTA/CT volume.
 
-        # define paths
-        nii_path = "path/to/input_image.nii.gz"
-        output_path = "path/to/output_directory"
+    :param output_path:
+        Directory where the MIP output file will be saved.
+        Created automatically if it does not exist.
 
-        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
-        view = "axial"
+    :param window_size:
+        Number of slices on each side of the current slice used to compute
+        the local MIP. Effective window length is ``2 * window_size + 1``.
 
-        # run the function
-        mip(nii_path=nii_path,
-            output_path=output_path,
-            window_size=20,
-            view=view,
-            debug=True)
+    :param view:
+        Anatomical orientation that defines the projection axis:
+
+        - ``"axial"``   → projection along the Z-axis (default)  
+        - ``"coronal"`` → projection along the Y-axis  
+        - ``"sagittal"``→ projection along the X-axis  
+
+    :param debug:
+        If ``True``, prints progress information and the output filename.
+
+    :raises FileNotFoundError:
+        If the input file does not exist.
+
+    :raises ValueError:
+        If the input file is not ``.nii.gz``, if the NIfTI data is not 3D,
+        or if ``view`` is not one of the allowed values.
+
+    Example
+    -------
+    >>> from nidataset.preprocessing import mip
+    >>>
+    >>> mip(
+    ...     nii_path="CTA_patient001.nii.gz",
+    ...     output_path="./MIP_results/",
+    ...     window_size=20,
+    ...     view="axial",
+    ...     debug=True
+    ... )
     """
 
     # check if the input file exists
@@ -288,42 +404,70 @@ def mip_dataset(nii_folder: str,
                 saving_mode: str = "case", 
                 debug: bool = False) -> None:
     """
-    Generates 3D Maximum Intensity Projections (MIP) from all NIfTI files in a dataset folder. Save the output file as:
+    Generate sliding-window Maximum Intensity Projections (MIP) for all NIfTI
+    volumes contained in a dataset directory.
 
-        <Nifti FILENAME>_mip_<VIEW>.nii.gz
+    Each ``.nii.gz`` file is processed independently using the same logic as
+    :func:`mip`, producing a local MIP volume with identical shape to the
+    original. The output filenames follow the convention:
 
-    :param nii_folder: path to the folder containing .nii.gz files.
-    :param output_path: path where the MIP .nii.gz files will be saved.
-    :param window_size: number of slices to merge for the MIP.
-    :param view: "axial" (default) -> performs MIP along the Z-axis.
-                 "coronal" -> performs MIP along the Y-axis.
-                 "sagittal" -> performs MIP along the X-axis.
-    :param saving_mode: "case" -> creates a folder for each case.
-                        "view" -> saves all MIP files inside a single folder.
-    :param debug: if True, prints additional information about the process.
+        ``<FILENAME>_mip_<VIEW>.nii.gz``
 
-    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: if an invalid view or saving_mode is provided.
+    Depending on ``saving_mode``, the output can be organized either into a
+    dedicated folder per case or collected into a single view-specific
+    directory.
 
-    Example:
+    .. note::
+       - Only 3D NIfTI files (shape ``(X, Y, Z)``) are supported.
+       - The affine matrix of each input volume is preserved.
+       - This function does **not** parallelize processing; files are handled
+         sequentially.
 
-        from nidataset.Preprocessing import mip_dataset
+    :param nii_folder:
+        Path to the dataset directory containing one or more ``.nii.gz`` files.
 
-        # define paths
-        nii_folder = "path/to/dataset"
-        output_path = "path/to/output_directory"
+    :param output_path:
+        Directory where the generated MIP files will be saved.
+        Created automatically if it does not exist.
 
-        # choose the anatomical view ('axial', 'coronal', or 'sagittal')
-        view = "axial"
+    :param window_size:
+        Number of slices on each side of the current index used to compute the
+        local projection. Effective window length is ``2 * window_size + 1``.
 
-        # run the function
-        mip_dataset(nii_folder=nii_folder, 
-                    output_path=output_path, 
-                    window_size=20, 
-                    view=view, 
-                    saving_mode="case", 
-                    debug=True)
+    :param view:
+        Anatomical orientation that defines the projection axis:
 
+        - ``"axial"``   → projection along the Z-axis (default)  
+        - ``"coronal"`` → projection along the Y-axis  
+        - ``"sagittal"``→ projection along the X-axis  
+
+    :param saving_mode:
+        Defines how output files are structured:
+
+        - ``"case"`` → creates ``<case>/<view>/`` subfolders (default)
+        - ``"view"`` → stores all outputs in a single view-specific directory
+
+    :param debug:
+        If ``True``, prints summary information after processing.
+
+    :raises FileNotFoundError:
+        If the dataset directory does not exist or contains no ``.nii.gz`` files.
+
+    :raises ValueError:
+        If ``view`` or ``saving_mode`` is not one of the allowed values.
+
+    Example
+    -------
+    >>> from nidataset.preprocessing import mip_dataset
+    >>>
+    >>> mip_dataset(
+    ...     nii_folder="path/to/dataset/",
+    ...     output_path="path/to/output/",
+    ...     window_size=20,
+    ...     view="axial",
+    ...     saving_mode="case",
+    ...     debug=True
+    ... )
     """
 
     # check if the dataset folder exists
@@ -380,32 +524,52 @@ def resampling(nii_path: str,
                desired_volume: tuple,
                debug: bool = False) -> None:
     """
-    Resamples a single NIfTI file to the desired volume size.
-    Saves the output file as:
+    Resample a 3D NIfTI volume to a target spatial size while preserving its
+    physical field of view.
 
-        <Nifti FILENAME>_resampled.nii.gz
+    The function computes a new voxel spacing such that the original physical
+    dimensions of the volume are maintained when interpolating the data into the
+    new ``desired_volume`` grid. The output is saved as:
 
-    :param nii_path: path to the input .nii.gz file.
-    :param output_path: path where the resampled NIfTI file will be saved.
-    :param desired_volume: target volume size (X, Y, Z).
-    :param debug: if True, prints additional information about the process.
-    
-    :raises FileNotFoundError: if the input NIfTI file does not exist.
-    :raises ValueError: if the file is empty, has invalid dimensions or if the desired volume has invalid dimensions.
+        ``<FILENAME>_resampled.nii.gz``
 
-    Example:
+    .. note::
+       - Only 3D NIfTI files (shape ``(X, Y, Z)``) are supported.
+       - The affine information (origin, spacing, direction) is recalculated
+         consistently using SimpleITK.
+       - B-spline interpolation is used for smooth resampling.
 
-        from nidataset.Preprocessing import resampling
+    :param nii_path:
+        Path to the input ``.nii.gz`` file containing a single 3D volume.
 
-        # define paths
-        nii_path = "path/to/input_image.nii.gz"
-        output_path = "path/to/output_directory"
+    :param output_path:
+        Directory where the resampled volume will be saved. Created if it does
+        not exist.
 
-        # run the function
-        resampling(nii_path=nii_path,
-                   output_path=output_path,
-                   desired_volume=(224,224,128),
-                   debug=True)
+    :param desired_volume:
+        Target volume size as a tuple ``(X, Y, Z)``. Must contain exactly three
+        integers.
+
+    :param debug:
+        If ``True``, prints the location of the saved output.
+
+    :raises FileNotFoundError:
+        If the input file does not exist.
+
+    :raises ValueError:
+        If the file format is incorrect, the input volume is invalid, or
+        ``desired_volume`` does not contain three values.
+
+    Example
+    -------
+    >>> from nidataset.preprocessing import resampling
+    >>>
+    >>> resampling(
+    ...     nii_path="path/to/input_image.nii.gz",
+    ...     output_path="path/to/output/",
+    ...     desired_volume=(224, 224, 128),
+    ...     debug=True
+    ... )
     """
 
     # check if the input file exists
@@ -462,34 +626,55 @@ def resampling_dataset(nii_folder: str,
                        saving_mode: str = "case",
                        debug: bool = False) -> None:
     """
-    Resamples all NIfTI files in a dataset folder to the desired volume size. Saves the output file as:
+    Resample all 3D NIfTI files inside a dataset folder to a target volume size.
+    The resampled images preserve the original field of view by computing a new
+    voxel spacing consistent with the requested ``desired_volume``. Each output
+    file is saved as:
 
-        <Nifti FILENAME>_resampled.nii.gz
+        ``<FILENAME>_resampled.nii.gz``
 
-    :param nii_folder: path to the folder containing .nii.gz files.
-    :param output_path: path where the resampled NIfTI files will be saved.
-    :param desired_volume: target volume size (X, Y, Z).
-    :param saving_mode: "case" -> creates a folder for each case.
-                        "folder" -> saves all resampled images inside a single folder.
-    :param debug: if True, prints additional information about the process.
+    .. note::
+       - Only 3D ``.nii.gz`` files are processed.
+       - Uses B-spline interpolation for smooth volumetric resampling.
+       - The output directory structure depends on ``saving_mode``.
 
-    :raises FileNotFoundError: if the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: if an invalid saving_mode is provided.
+    :param nii_folder:
+        Directory containing the input ``.nii.gz`` files.
 
-    Example:
+    :param output_path:
+        Directory where the resampled images will be saved. Created if it does
+        not exist.
 
-        from nidataset.Preprocessing import resampling_dataset
+    :param desired_volume:
+        Target volume size expressed as a tuple ``(X, Y, Z)``. Must contain
+        exactly three integers.
 
-        # define paths
-        nii_folder = "path/to/dataset"
-        output_path = "path/to/output_directory"
+    :param saving_mode:
+        ``"case"`` → creates a dedicated subfolder for each image  
+        ``"folder"`` → saves all resampled images into a single directory
 
-        # run the function
-        resampling_dataset(nii_folder=nii_folder, 
-                           output_path=output_path, 
-                           desired_volume=(224,224,128),
-                           saving_mode="case", 
-                           debug=True)
+    :param debug:
+        If ``True``, prints additional information after processing.
+
+    :raises FileNotFoundError:
+        If the input dataset directory does not exist or contains no NIfTI
+        files.
+
+    :raises ValueError:
+        If ``desired_volume`` has an invalid size or ``saving_mode`` is not
+        ``"case"`` or ``"folder"``.
+
+    Example
+    -------
+    >>> from nidataset.preprocessing import resampling_dataset
+    >>>
+    >>> resampling_dataset(
+    ...     nii_folder="path/to/dataset/",
+    ...     output_path="path/to/output/",
+    ...     desired_volume=(224, 224, 128),
+    ...     saving_mode="case",
+    ...     debug=True
+    ... )
     """
 
     # check if the dataset folder exists
@@ -544,42 +729,67 @@ def register_CTA(nii_path: str,
                  cleanup: bool = False,
                  debug: bool = False) -> None:
     """
-    Registers a CTA image to a given template using mutual information-based registration. Saves the output registered image and transformation file as:
+    Registers a CTA volume to a reference template using Mutual Information.
+    The pipeline applies Gaussian-based preprocessing on the CTA, loads the
+    corresponding masks, performs MI-driven rigid registration, and saves:
 
-        <Nifti FILENAME>_registered.nii.gz
-        <Nifti FILENAME>_gaussian_filtered.nii.gz
-        <Nifti FILENAME>_transformation.tfm
+        <PREFIX>_registered.nii.gz
+        <PREFIX>_gaussian_filtered.nii.gz
+        <PREFIX>_transformation.tfm
 
-    :param nii_path: Path to the input .nii.gz file.
-    :param mask_path: Path to the input mask file.
-    :param template_path: Path to the template image file.
-    :param template_mask_path: Path to the template mask file.
-    :param output_image_path: Path where the registered NIfTI file will be saved.
-    :param output_transformation_path: Path where the transformation file will be saved.
-    :param cleanup: If True, deletes the temporary gaussian-filtered CTA file.
-    :param debug: If True, prints additional information about the process.
-    
-    :raises FileNotFoundError: If any input file does not exist.
-    :raises ValueError: If the file is empty or has invalid dimensions.
+    .. note::
+       - The registration uses a Moment-based initializer, Mattes Mutual 
+         Information, and Gradient Descent optimization.
+       - The CTA undergoes low/high-intensity suppression and two sequential
+         Gaussian smoothings before registration.
+       - The template and CTA masks are used to constrain the metric.
 
-    Example:
+    :param nii_path:
+        Path to the input CTA ``.nii.gz`` volume.
 
-        from nidataset.Preprocessing import register_CTA
+    :param mask_path:
+        Path to the CTA brain mask used to restrict the registration metric.
 
-        # define paths
-        nii_path = "path/to/input_image.nii.gz"
-        output_image_path = "path/to/output_image_directory"
-        output_transformation_path = "path/to/output_transformation_directory"
+    :param template_path:
+        Path to the reference template image (typically MNI-like CTA template).
 
-        # run the function
-        register_CTA(nii_path=nii_path,
-                     mask_path=mask_path,
-                     template_path="path/to/template",
-                     template_mask_path="path/to/template_mask",
-                     output_image_path=output_image_path,
-                     output_transformation_path=output_transformation_path,
-                     cleanup=True,
-                     debug=False)
+    :param template_mask_path:
+        Path to the template mask, used as the fixed-image mask.
+
+    :param output_image_path:
+        Directory where the registered CTA and temporary filtered CTA will be
+        saved. Created if it does not exist.
+
+    :param output_transformation_path:
+        Directory where the transformation (``.tfm``) file will be saved.
+
+    :param cleanup:
+        If ``True``, deletes the intermediate
+        ``<PREFIX>_gaussian_filtered.nii.gz`` file after registration.
+
+    :param debug:
+        If ``True``, prints detailed information about the registration process.
+
+    :raises FileNotFoundError:
+        If any input file does not exist.
+
+    :raises ValueError:
+        If the input file is not a valid ``.nii.gz`` or has invalid dimensions.
+
+    Example
+    -------
+    >>> from nidataset.preprocessing import register_CTA
+    >>>
+    >>> register_CTA(
+    ...     nii_path="dataset/case001.nii.gz",
+    ...     mask_path="dataset/case001_mask.nii.gz",
+    ...     template_path="templates/CTA_template.nii.gz",
+    ...     template_mask_path="templates/CTA_template_mask.nii.gz",
+    ...     output_image_path="output/registered_images/",
+    ...     output_transformation_path="output/transforms/",
+    ...     cleanup=True,
+    ...     debug=True
+    ... )
     """
 
     # check if input files exist
@@ -682,48 +892,79 @@ def register_CTA_dataset(nii_folder: str,
                          cleanup: bool = False,
                          debug: bool = False) -> None:
     """
-    Registers all CTA images in a dataset folder to a given template using mutual information-based registration.
-    Saves the output registered image and transformation file as:
+    Registers all CTA images in a dataset folder to a reference template using 
+    mutual information-based registration. Each CTA volume is preprocessed 
+    with Gaussian filtering, masked, and aligned to the template. Saves:
 
-        <Nifti FILENAME>_registered.nii.gz
-        <Nifti FILENAME>_gaussian_filtered.nii.gz
-        <Nifti FILENAME>_transformation.tfm
+        <PREFIX>_registered.nii.gz
+        <PREFIX>_gaussian_filtered.nii.gz
+        <PREFIX>_transformation.tfm
 
-    :param nii_folder: Path to the folder containing .nii.gz files.
-    :param mask_folder: Path to the folder containing mask files.
-    :param template_path: Path to the template image file.
-    :param template_mask_path: Path to the template mask file.
-    :param output_image_path: Path where the registered NIfTI files will be saved.
-    :param output_transformation_path: Path where the transformation files will be saved. Default is empty if saving_mode is "case" and you want to save the transform inside the case folder.
-    :param saving_mode: "case" -> creates a folder for each case and save image and transform file.
-                        "folder" -> saves all registered images in a single folder.
-    :param cleanup: If True, deletes the temporary gaussian-filtered CTA files.
-    :param debug: If True, prints additional information about the process.
+    .. note::
+       - Each CTA is filtered to remove negative and extreme high-intensity 
+         values before registration.
+       - The registration uses a moment-based initializer, Mattes Mutual 
+         Information metric, and Gradient Descent optimization.
+       - The masks constrain the metric to the brain region.
+       - If ``saving_mode`` is "case", each case will have its own subfolder 
+         containing the registered image and transformation.
+       - If ``cleanup`` is True, intermediate Gaussian-filtered images are removed.
 
-    :raises FileNotFoundError: If the dataset folder does not exist or contains no .nii.gz files.
-    :raises ValueError: If an invalid saving_mode is provided.
+    :param nii_folder:
+        Path to the folder containing the input CTA ``.nii.gz`` files.
 
-    Example:
+    :param mask_folder:
+        Path to the folder containing the corresponding CTA masks. Mask files
+        must have the same filenames as the CTA volumes.
 
-        from nidataset.Preprocessing import register_CTA_dataset
+    :param template_path:
+        Path to the reference template image (CTA volume).
 
-        # define paths
-        nii_folder = "path/to/dataset"
-        mask_folder = "path/to/dataset_masks"
-        output_image_path = "path/to/output_image_directory"
-        output_transformation_path = "path/to/output_transformation_directory"
+    :param template_mask_path:
+        Path to the template mask, used as the fixed-image mask.
 
-        # run the function
-        register_CTA_dataset(nii_folder=nii_folder,
-                             mask_folder=mask_folder,
-                             template_path="path/to/template",
-                             template_mask_path="path/to/template_mask",
-                             output_image_path=output_image_path,
-                             output_transformation_path=output_transformation_path,
-                             saving_mode="folder",
-                             cleanup=True,
-                             debug=False)
+    :param output_image_path:
+        Directory where registered CTA images will be saved. Created if missing.
 
+    :param output_transformation_path:
+        Directory where transformation files (``.tfm``) will be saved. 
+        Ignored if ``saving_mode`` is "case" (transform is saved in the case folder).
+
+    :param saving_mode:
+        Defines how outputs are organized:
+
+        - ``"case"`` — one subfolder per input file with both registered image 
+          and transformation (recommended for datasets).  
+        - ``"folder"`` — all registered images saved into a single folder.
+
+    :param cleanup:
+        If ``True``, deletes intermediate Gaussian-filtered CTA files.
+
+    :param debug:
+        If ``True``, prints detailed information about the registration process
+        for each file.
+
+    :raises FileNotFoundError:
+        If ``nii_folder`` does not exist or contains no ``.nii.gz`` files.
+
+    :raises ValueError:
+        If ``saving_mode`` is not ``"case"`` or ``"folder"``.
+
+    Example
+    -------
+    >>> from nidataset.preprocessing import register_CTA_dataset
+    >>>
+    >>> register_CTA_dataset(
+    ...     nii_folder="dataset/CTA_raw/",
+    ...     mask_folder="dataset/CTA_masks/",
+    ...     template_path="templates/CTA_template.nii.gz",
+    ...     template_mask_path="templates/CTA_template_mask.nii.gz",
+    ...     output_image_path="output/CTA_registered/",
+    ...     output_transformation_path="output/CTA_transforms/",
+    ...     saving_mode="folder",
+    ...     cleanup=True,
+    ...     debug=True
+    ... )
     """
 
     # check if dataset folder exists
