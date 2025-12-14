@@ -43,14 +43,14 @@ import nidataset as nid
 ## 🚨 Requirements
 
 ```bash
-Python>=3.8.0
-Pillow>=9.4.0
-nibabel>=5.1.0
-numpy>=1.24.2
-scikit-image>=0.19.3
-pandas>=1.5.3
-SimpleITK>=2.2.1
-scipy>=1.10.0
+nibabel>=5.3.3
+numpy>=2.3.5
+opencv_python>=4.9.0.80
+pandas>=2.3.3
+Pillow>=12.0.0
+scipy>=1.16.3
+simpleitk>=2.5.3
+skimage>=0.0
 tqdm>=4.67.1
 ```
 
