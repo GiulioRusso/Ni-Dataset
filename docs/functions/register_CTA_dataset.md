@@ -14,11 +14,18 @@ register_CTA_dataset(
     mask_folder: str,
     template_path: str,
     template_mask_path: str,
-    output_image_path: str,
-    output_transformation_path: str = "",
+    output_path: str,
     saving_mode: str = "case",
     cleanup: bool = False,
-    debug: bool = False
+    debug: bool = False,
+    number_histogram_bins: int = 128,
+    learning_rate: float = 0.0001,
+    number_iterations: int = 2000,
+    initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
+    sigma_first: float = 2.0,
+    sigma_second: float = 3.0,
+    metric_sampling_percentage: float = 0.5,
+    initial_transform = None
 ) -> None
 ```
 
@@ -46,11 +53,18 @@ Registration is essential for:
 | `mask_folder`                | `str`  | *required* | Path to the directory containing brain masks. Must have matching filenames.                         |
 | `template_path`              | `str`  | *required* | Path to the reference template volume for registration.                                             |
 | `template_mask_path`         | `str`  | *required* | Path to the template's brain mask.                                                                  |
-| `output_image_path`          | `str`  | *required* | Directory where registered volumes will be saved.                                                   |
-| `output_transformation_path` | `str`  | `""`       | Directory for transformation files. Ignored in case mode (stored with images).                      |
+| `output_path`                | `str`  | *required* | Base directory for all outputs. Structure depends on `saving_mode`.                                 |
 | `saving_mode`                | `str`  | `"case"`   | Organization mode: `"case"` (folder per volume) or `"folder"` (shared folders).                    |
 | `cleanup`                    | `bool` | `False`    | If `True`, deletes intermediate Gaussian-filtered files after registration.                         |
 | `debug`                      | `bool` | `False`    | If `True`, prints detailed registration information for each volume.                                |
+| `number_histogram_bins`      | `int`  | `128`      | Number of histogram bins for Mattes Mutual Information metric. Common values: 10, 50, 64, 128.     |
+| `learning_rate`              | `float`| `0.0001`   | Learning rate for Gradient Descent optimizer. Common values: 0.0001-1.0.                            |
+| `number_iterations`          | `int`  | `2000`     | Maximum number of optimization iterations. Common values: 500-5000.                                 |
+| `initialization_strategy`    | `int`  | `MOMENTS`  | Strategy for initializing transformation: `MOMENTS` (center of mass) or `GEOMETRY` (center/orientation). |
+| `sigma_first`                | `float`| `2.0`      | Standard deviation for the first Gaussian smoothing filter.                                         |
+| `sigma_second`               | `float`| `3.0`      | Standard deviation for the second Gaussian smoothing filter.                                        |
+| `metric_sampling_percentage` | `float`| `0.5`      | Percentage of voxels to sample for metric evaluation (0.0-1.0). Default: 0.5 (50%).               |
+| `initial_transform`          | `None` | `None`     | Initial transformation object. If `None`, defaults to `sitk.Euler3DTransform()`.                   |
 
 ## Returns
 
@@ -60,43 +74,98 @@ Registration is essential for:
 
 ### Saving Modes
 
+The function supports two organizational strategies for output files:
+
 #### Case Mode (`saving_mode="case"`)
-Creates a separate folder for each volume (recommended):
+Creates a separate folder for each volume (recommended for dataset organization):
+
+**Without cleanup** (`cleanup=False`):
 ```
-output_image_path/
+output_path/
 ├── patient_001/
 │   ├── patient_001_registered.nii.gz
-│   ├── patient_001_gaussian_filtered.nii.gz
+│   ├── patient_001_gaussian_filtered.nii.gz  ← intermediate file kept
 │   └── patient_001_transformation.tfm
 ├── patient_002/
 │   ├── patient_002_registered.nii.gz
-│   ├── patient_002_gaussian_filtered.nii.gz
+│   ├── patient_002_gaussian_filtered.nii.gz  ← intermediate file kept
 │   └── patient_002_transformation.tfm
 ```
 
+**With cleanup** (`cleanup=True`):
+```
+output_path/
+├── patient_001/
+│   ├── patient_001_registered.nii.gz
+│   └── patient_001_transformation.tfm  ← gaussian_filtered.nii.gz deleted
+├── patient_002/
+│   ├── patient_002_registered.nii.gz
+│   └── patient_002_transformation.tfm  ← gaussian_filtered.nii.gz deleted
+```
+
 #### Folder Mode (`saving_mode="folder"`)
-Separates images and transformations:
+Separates images and transformations into dedicated subdirectories. This mode uses temporary directories during processing.
+
+**Processing flow**:
+1. For each volume, creates a temporary directory: `output_path/_temp_<PREFIX>/`
+2. Runs registration, generating files in the temporary directory
+3. Moves `<PREFIX>_registered.nii.gz` to `output_path/registered/`
+4. Moves `<PREFIX>_transformation.tfm` to `output_path/transforms/`
+5. If `cleanup=True`, deletes the temporary directory
+6. If `cleanup=False`, keeps the temporary directory with gaussian-filtered files
+
+**Without cleanup** (`cleanup=False`):
 ```
-output_image_path/
-├── patient_001_registered.nii.gz
-├── patient_001_gaussian_filtered.nii.gz
-├── patient_002_registered.nii.gz
-└── patient_002_gaussian_filtered.nii.gz
-
-output_transformation_path/
-├── patient_001_transformation.tfm
-└── patient_002_transformation.tfm
+output_path/
+├── _temp_patient_001/
+│   └── patient_001_gaussian_filtered.nii.gz  ← intermediate kept in temp
+├── _temp_patient_002/
+│   └── patient_002_gaussian_filtered.nii.gz  ← intermediate kept in temp
+├── _temp_patient_003/
+│   └── patient_003_gaussian_filtered.nii.gz  ← intermediate kept in temp
+├── registered/
+│   ├── patient_001_registered.nii.gz
+│   ├── patient_002_registered.nii.gz
+│   └── patient_003_registered.nii.gz
+└── transforms/
+    ├── patient_001_transformation.tfm
+    ├── patient_002_transformation.tfm
+    └── patient_003_transformation.tfm
 ```
 
-### Output Files
+**With cleanup** (`cleanup=True`):
+```
+output_path/
+├── registered/
+│   ├── patient_001_registered.nii.gz
+│   ├── patient_002_registered.nii.gz
+│   └── patient_003_registered.nii.gz
+└── transforms/
+    ├── patient_001_transformation.tfm
+    ├── patient_002_transformation.tfm
+    └── patient_003_transformation.tfm
+```
 
-For each input volume:
+**Important notes for folder mode**:
+- Temporary directories (`_temp_<PREFIX>/`) are created for each volume during processing
+- If `cleanup=True`, temporary directories are deleted after moving registered images and transformations
+- If `cleanup=False`, temporary directories are kept with their gaussian-filtered intermediate files
+- This allows you to inspect preprocessing steps or recover gaussian-filtered volumes if needed
 
-| File                              | Description                                       |
-|-----------------------------------|---------------------------------------------------|
-| `<PREFIX>_registered.nii.gz`      | Volume aligned to template space                  |
-| `<PREFIX>_gaussian_filtered.nii.gz` | Preprocessed volume (removed if `cleanup=True`) |
-| `<PREFIX>_transformation.tfm`     | Transformation parameters for reapplication       |
+## Output Files
+
+For each input volume, the function generates:
+
+| File                              | Description                                       | Kept After Cleanup |
+|-----------------------------------|---------------------------------------------------|--------------------|
+| `<PREFIX>_registered.nii.gz`      | Volume aligned to template space                  | Yes                |
+| `<PREFIX>_gaussian_filtered.nii.gz` | Preprocessed volume used for registration       | No (if cleanup=True) |
+| `<PREFIX>_transformation.tfm`     | Transformation parameters                         | Yes                |
+
+**Example**: Input `scan_042.nii.gz` produces:
+- `scan_042_registered.nii.gz`
+- `scan_042_gaussian_filtered.nii.gz` (temporary)
+- `scan_042_transformation.tfm`
 
 ## Registration Pipeline
 
@@ -110,7 +179,7 @@ The registration process for each volume:
 2. **Mask-Based Registration**
    - Uses mutual information metric
    - Constrains optimization to brain regions
-   - Moment-based initialization for alignment
+   - Moment-based or geometry-based initialization
    - Gradient descent optimization
 
 3. **Transform Application**
@@ -126,14 +195,22 @@ The registration process for each volume:
 ## Registration Method
 
 **Metric**: Mattes Mutual Information
+- **Histogram bins**: Configurable (default: 128)
+- **Sampling**: Configurable percentage (default: 50%)
 - Robust to intensity differences between modalities
 - Suitable for mono-modal (same imaging type) registration
 - Handles intensity variations across scanners
 
 **Optimization**: Gradient Descent
+- **Learning rate**: Configurable (default: 0.0001)
+- **Iterations**: Configurable maximum (default: 2000)
 - Iteratively refines alignment
 - Balances speed and accuracy
-- Uses moment-based initialization
+- Uses moment-based or geometry-based initialization
+
+**Transform**: Euler3D (default) or custom
+- 6 degrees of freedom (rigid transformation)
+- Can be customized via `initial_transform` parameter
 
 **Masking**: Brain region constraint
 - Focuses registration on relevant anatomy
@@ -145,16 +222,17 @@ The registration process for each volume:
 | Exception            | Condition                                                          |
 |----------------------|--------------------------------------------------------------------|
 | `FileNotFoundError`  | The `nii_folder` does not exist or contains no `.nii.gz` files    |
-| `ValueError`         | Invalid `saving_mode` parameter                                    |
+| `ValueError`         | Invalid `saving_mode` parameter (must be `"case"` or `"folder"`)  |
 
 ## Usage Notes
 
 - **Input Format**: Only `.nii.gz` files are processed
-- **Mask Requirement**: Each volume must have a corresponding mask with matching filename
+- **Mask Requirement**: Each volume must have a corresponding mask with matching filename in `mask_folder`
 - **Template Selection**: Choose a representative template from your dataset
-- **Sequential Processing**: Volumes are registered one at a time
-- **Progress Display**: Shows progress bar during processing
+- **Sequential Processing**: Volumes are registered one at a time with a progress bar (tqdm)
 - **Output Directories**: Automatically created if they don't exist
+- **Progress Display**: Shows real-time progress during batch processing
+- **Parameter Tuning**: All registration parameters can be customized for dataset-specific optimization
 
 ## Examples
 
@@ -169,10 +247,36 @@ register_CTA_dataset(
     mask_folder="dataset/brain_masks/",
     template_path="templates/standard_template.nii.gz",
     template_mask_path="templates/standard_mask.nii.gz",
-    output_image_path="dataset/registered/",
+    output_path="dataset/registered/",
     saving_mode="case"
 )
 # Creates: dataset/registered/case_001/case_001_registered.nii.gz, ...
+```
+
+### Custom Registration Parameters
+Fine-tune registration for your dataset:
+
+```python
+import SimpleITK as sitk
+from nidataset.preprocessing import register_CTA_dataset
+
+register_CTA_dataset(
+    nii_folder="dataset/scans/",
+    mask_folder="dataset/masks/",
+    template_path="template/CTA_template.nii.gz",
+    template_mask_path="template/CTA_template_mask.nii.gz",
+    output_path="dataset/registered/",
+    saving_mode="case",
+    number_histogram_bins=64,
+    learning_rate=0.01,
+    number_iterations=1000,
+    initialization_strategy=sitk.CenteredTransformInitializerFilter.GEOMETRY,
+    sigma_first=1.5,
+    sigma_second=2.5,
+    metric_sampling_percentage=0.7,
+    cleanup=True,
+    debug=True
+)
 ```
 
 ### With Cleanup
@@ -184,7 +288,7 @@ register_CTA_dataset(
     mask_folder="data/cta_masks/",
     template_path="template/atlas.nii.gz",
     template_mask_path="template/atlas_mask.nii.gz",
-    output_image_path="data/aligned/",
+    output_path="data/aligned/",
     saving_mode="case",
     cleanup=True,  # Remove Gaussian-filtered intermediates
     debug=True
@@ -201,12 +305,34 @@ register_CTA_dataset(
     mask_folder="masks/",
     template_path="reference.nii.gz",
     template_mask_path="reference_mask.nii.gz",
-    output_image_path="results/images/",
-    output_transformation_path="results/transforms/",
+    output_path="results/",
     saving_mode="folder",
     debug=True
 )
-# Images in results/images/, transforms in results/transforms/
+# Images in results/registered/, transforms in results/transforms/
+```
+
+### Using Custom Initial Transform
+Start with an affine transform instead of rigid:
+
+```python
+import SimpleITK as sitk
+from nidataset.preprocessing import register_CTA_dataset
+
+# Create a custom initial transform
+affine_transform = sitk.AffineTransform(3)
+
+register_CTA_dataset(
+    nii_folder="scans/",
+    mask_folder="masks/",
+    template_path="template.nii.gz",
+    template_mask_path="template_mask.nii.gz",
+    output_path="registered/",
+    saving_mode="case",
+    initial_transform=affine_transform,
+    number_iterations=3000,  # More iterations for affine
+    debug=True
+)
 ```
 
 ### Quality Control Workflow
@@ -223,7 +349,7 @@ register_CTA_dataset(
     mask_folder="qa/masks/",
     template_path="qa/template.nii.gz",
     template_mask_path="qa/template_mask.nii.gz",
-    output_image_path="qa/registered/",
+    output_path="qa/registered/",
     saving_mode="case",
     debug=True
 )
@@ -257,6 +383,7 @@ Select a representative scan as template:
 ```python
 import nibabel as nib
 import shutil
+import numpy as np
 from nidataset.preprocessing import register_CTA_dataset
 
 # Step 1: Select template (e.g., scan with median brain size)
@@ -285,7 +412,7 @@ register_CTA_dataset(
     mask_folder="masks/",
     template_path="templates/custom_template.nii.gz",
     template_mask_path="templates/custom_template_mask.nii.gz",
-    output_image_path="registered/",
+    output_path="registered/",
     saving_mode="case",
     cleanup=True,
     debug=True
@@ -312,7 +439,7 @@ for center in centers:
         mask_folder=f"data/{center}/masks/",
         template_path=template,
         template_mask_path=template_mask,
-        output_image_path=f"harmonized/{center}/",
+        output_path=f"harmonized/{center}/",
         saving_mode="case",
         cleanup=True,
         debug=True
@@ -321,60 +448,12 @@ for center in centers:
 print("\nAll centers registered to common template")
 ```
 
-### Parallel Processing Strategy
-Process large datasets efficiently:
-
-```python
-from nidataset.preprocessing import register_CTA_dataset
-import multiprocessing as mp
-import os
-
-def register_subset(file_list, subset_id):
-    """Register a subset of files."""
-    # Create temporary folder with subset
-    temp_folder = f"temp_subset_{subset_id}/"
-    os.makedirs(temp_folder, exist_ok=True)
-    
-    for f in file_list:
-        shutil.copy(f"all_scans/{f}", temp_folder)
-    
-    # Register subset
-    register_CTA_dataset(
-        nii_folder=temp_folder,
-        mask_folder="all_masks/",
-        template_path="template.nii.gz",
-        template_mask_path="template_mask.nii.gz",
-        output_image_path=f"registered_subset_{subset_id}/",
-        saving_mode="case",
-        cleanup=True
-    )
-    
-    # Cleanup
-    shutil.rmtree(temp_folder)
-
-# Split files into subsets
-all_files = [f for f in os.listdir("all_scans/") if f.endswith('.nii.gz')]
-n_cores = 4
-subsets = np.array_split(all_files, n_cores)
-
-# Process in parallel
-with mp.Pool(n_cores) as pool:
-    pool.starmap(register_subset, enumerate(subsets))
-
-# Merge results
-final_output = "registered_all/"
-os.makedirs(final_output, exist_ok=True)
-for i in range(n_cores):
-    shutil.copytree(f"registered_subset_{i}/", final_output, dirs_exist_ok=True)
-
-print("Parallel registration complete")
-```
-
 ### Applying Saved Transformations
 Reuse transformations for other data:
 
 ```python
 import SimpleITK as sitk
+import os
 from nidataset.preprocessing import register_CTA_dataset
 
 # Step 1: Register structural scans
@@ -383,7 +462,7 @@ register_CTA_dataset(
     mask_folder="masks/",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="registered_structural/",
+    output_path="registered_structural/",
     saving_mode="case",
     cleanup=False,
     debug=True
@@ -429,6 +508,7 @@ from nidataset.preprocessing import register_CTA_dataset
 import nibabel as nib
 import numpy as np
 import pandas as pd
+import os
 
 # Register dataset
 register_CTA_dataset(
@@ -436,7 +516,7 @@ register_CTA_dataset(
     mask_folder="masks/",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="registered/",
+    output_path="registered/",
     saving_mode="case",
     debug=True
 )
@@ -505,6 +585,8 @@ Track registration parameters:
 from nidataset.preprocessing import register_CTA_dataset
 import SimpleITK as sitk
 import pandas as pd
+import numpy as np
+import os
 
 # Register with debug to see details
 register_CTA_dataset(
@@ -512,7 +594,7 @@ register_CTA_dataset(
     mask_folder="data/masks/",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="data/registered/",
+    output_path="data/registered/",
     saving_mode="case",
     cleanup=False,
     debug=True
@@ -528,15 +610,19 @@ for case in os.listdir("data/registered/"):
         transform = sitk.ReadTransform(tfm_file)
         params = transform.GetParameters()
         
-        # Extract translation components (assuming affine)
-        if len(params) >= 12:
-            tx, ty, tz = params[9:12]
+        # Extract translation components (for Euler3D: 6 params)
+        if len(params) >= 6:
+            rotations = params[0:3]
+            translations = params[3:6]
             transform_stats.append({
                 'case': case,
-                'translation_x': tx,
-                'translation_y': ty,
-                'translation_z': tz,
-                'total_translation': np.sqrt(tx**2 + ty**2 + tz**2)
+                'rotation_x': rotations[0],
+                'rotation_y': rotations[1],
+                'rotation_z': rotations[2],
+                'translation_x': translations[0],
+                'translation_y': translations[1],
+                'translation_z': translations[2],
+                'total_translation': np.sqrt(sum(t**2 for t in translations))
             })
 
 # Analyze
@@ -545,6 +631,73 @@ print("\nRegistration Statistics:")
 print(f"  Mean translation: {df['total_translation'].mean():.2f} mm")
 print(f"  Max translation: {df['total_translation'].max():.2f} mm")
 print(f"  Cases with large shifts (>20mm): {(df['total_translation'] > 20).sum()}")
+```
+
+### Comparing Different Registration Settings
+Compare standard vs. high-quality registration:
+
+```python
+from nidataset.preprocessing import register_CTA_dataset
+import nibabel as nib
+import numpy as np
+import os
+
+# Standard registration
+register_CTA_dataset(
+    nii_folder="comparison/scans/",
+    mask_folder="comparison/masks/",
+    template_path="template.nii.gz",
+    template_mask_path="template_mask.nii.gz",
+    output_path="comparison/standard/",
+    saving_mode="case",
+    cleanup=True
+)
+
+# High-quality registration
+register_CTA_dataset(
+    nii_folder="comparison/scans/",
+    mask_folder="comparison/masks/",
+    template_path="template.nii.gz",
+    template_mask_path="template_mask.nii.gz",
+    output_path="comparison/high_quality/",
+    saving_mode="case",
+    number_histogram_bins=256,
+    learning_rate=0.001,
+    number_iterations=5000,
+    metric_sampling_percentage=0.8,
+    cleanup=True
+)
+
+# Compare results
+template_data = nib.load("template.nii.gz").get_fdata()
+template_mask = nib.load("template_mask.nii.gz").get_fdata()
+mask_indices = template_mask > 0
+template_roi = template_data[mask_indices]
+
+results = []
+for case in os.listdir("comparison/standard/"):
+    if os.path.isdir(f"comparison/standard/{case}"):
+        # Load both versions
+        standard = nib.load(f"comparison/standard/{case}/{case}_registered.nii.gz")
+        hq = nib.load(f"comparison/high_quality/{case}/{case}_registered.nii.gz")
+        
+        standard_roi = standard.get_fdata()[mask_indices]
+        hq_roi = hq.get_fdata()[mask_indices]
+        
+        # Compare correlations
+        corr_standard = np.corrcoef(template_roi, standard_roi)[0, 1]
+        corr_hq = np.corrcoef(template_roi, hq_roi)[0, 1]
+        
+        results.append({
+            'case': case,
+            'standard_corr': corr_standard,
+            'hq_corr': corr_hq,
+            'improvement': corr_hq - corr_standard
+        })
+
+df = pd.DataFrame(results)
+print(f"\nAverage improvement: {df['improvement'].mean():.3f}")
+print(f"Cases improved: {(df['improvement'] > 0).sum()}/{len(df)}")
 ```
 
 ## Typical Workflow
@@ -565,7 +718,7 @@ register_CTA_dataset(
     mask_folder=mask_folder,
     template_path=template,
     template_mask_path=template_mask,
-    output_image_path="dataset/registered/",
+    output_path="dataset/registered/",
     saving_mode="case",
     cleanup=True,  # Save space
     debug=True
@@ -584,3 +737,15 @@ print(f"Registered shape: {sample_reg.shape}")
 # - Group comparisons
 # - Machine learning with spatial features
 ```
+
+## Parameter Tuning Guide
+
+| Parameter | Effect | Recommendations |
+|-----------|--------|-----------------|
+| `number_histogram_bins` | Higher values = finer intensity discretization | 64-128 for most cases; 256 for high-contrast images |
+| `learning_rate` | Higher values = faster but less stable convergence | 0.0001-0.001 for standard; 0.01+ for fast initial alignment |
+| `number_iterations` | More iterations = potential for better alignment | 1000-2000 standard; 3000-5000 for difficult cases |
+| `metric_sampling_percentage` | Higher sampling = more accurate but slower | 0.3-0.5 for speed; 0.7-1.0 for accuracy |
+| `sigma_first` / `sigma_second` | Controls smoothing strength | Lower for sharp features; higher for noisy images |
+| `initialization_strategy` | MOMENTS vs GEOMETRY | MOMENTS for asymmetric anatomy; GEOMETRY for symmetric |
+| `saving_mode` | Organization of outputs | "case" for per-subject analysis; "folder" for simpler structure |

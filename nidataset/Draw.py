@@ -1,11 +1,8 @@
 import numpy as np
 import nibabel as nib
-import torch
 import os
 import pandas as pd
 import cv2
-from typing import Tuple
-
 
 
 def draw_3D_boxes(df: pd.DataFrame,
