@@ -45,54 +45,130 @@ This is essential for:
 | `output_path` | `str`   | *required*   | Root directory where processed volumes will be saved.                                               |
 | `f_value`     | `float` | `0.1`        | Fractional intensity threshold for BET (0-1). Lower values = more aggressive stripping.             |
 | `clip_value`  | `tuple` | `(0, 200)`   | Intensity range `(min, max)` for final clipping after skull removal.                                |
-| `cleanup`     | `bool`  | `False`      | If `True`, deletes intermediate thresholded and smoothed images. Mask and final volume retained.    |
-| `saving_mode` | `str`   | `"case"`     | Organization mode: `"case"` (folder per volume) or `"folder"` (shared folder).                     |
+| `cleanup`     | `bool`  | `False`      | If `True`, deletes intermediate files. In folder mode, also deletes temporary directories.          |
+| `saving_mode` | `str`   | `"case"`     | Organization mode: `"case"` (folder per volume) or `"folder"` (separate skulled/masks folders).    |
 | `debug`       | `bool`  | `False`      | If `True`, prints detailed processing information for each volume.                                  |
 
 ## Returns
 
-`None` – The function saves processed volumes to disk.
+`None` — The function saves processed volumes to disk.
 
 ## Output Organization
 
 ### Saving Modes
 
+The function supports two organizational strategies for output files:
+
 #### Case Mode (`saving_mode="case"`)
-Creates a separate folder for each volume (recommended):
+Creates a separate folder for each volume (recommended for dataset organization):
+
+**Without cleanup** (`cleanup=False`):
 ```
 output_path/
 ├── patient_001/
-│   ├── patient_001_thresholded.nii.gz (if cleanup=False)
-│   ├── patient_001_smoothed.nii.gz (if cleanup=False)
-│   ├── patient_001_mask.nii.gz
-│   └── patient_001_skull_stripped.nii.gz
+│   ├── patient_001_th.nii.gz  ← intermediate kept
+│   ├── patient_001_th_sm.nii.gz  ← intermediate kept
+│   ├── patient_001_th_sm_th.nii.gz  ← intermediate kept
+│   ├── patient_001.skulled.nii.gz  ← intermediate kept
+│   ├── patient_001.skulled.mask.nii.gz
+│   └── patient_001.skulled.clipped.nii.gz
 ├── patient_002/
-│   └── ...
+│   ├── patient_002_th.nii.gz  ← intermediate kept
+│   ├── patient_002_th_sm.nii.gz  ← intermediate kept
+│   ├── patient_002_th_sm_th.nii.gz  ← intermediate kept
+│   ├── patient_002.skulled.nii.gz  ← intermediate kept
+│   ├── patient_002.skulled.mask.nii.gz
+│   └── patient_002.skulled.clipped.nii.gz
 ```
 
-#### Folder Mode (`saving_mode="folder"`)
-All processed volumes in a single directory:
+**With cleanup** (`cleanup=True`):
 ```
 output_path/
-├── patient_001_thresholded.nii.gz (if cleanup=False)
-├── patient_001_smoothed.nii.gz (if cleanup=False)
-├── patient_001_mask.nii.gz
-├── patient_001_skull_stripped.nii.gz
-├── patient_002_mask.nii.gz
-├── patient_002_skull_stripped.nii.gz
-└── ...
+├── patient_001/
+│   ├── patient_001.skulled.mask.nii.gz
+│   └── patient_001.skulled.clipped.nii.gz
+├── patient_002/
+│   ├── patient_002.skulled.mask.nii.gz
+│   └── patient_002.skulled.clipped.nii.gz
+```
+*Note: Intermediate files (_th.nii.gz, _th_sm.nii.gz, _th_sm_th.nii.gz, .skulled.nii.gz) are deleted*
+
+#### Folder Mode (`saving_mode="folder"`)
+Separates skull-stripped images and masks into dedicated subdirectories. This mode uses temporary directories during processing.
+
+**Processing flow**:
+1. For each volume, creates a temporary directory: `output_path/_temp_<PREFIX>/`
+2. Runs skull-stripping, generating files in the temporary directory
+3. Moves `<PREFIX>.skulled.clipped.nii.gz` to `output_path/skulled/`
+4. Moves `<PREFIX>.skulled.mask.nii.gz` to `output_path/masks/`
+5. If `cleanup=True`, deletes the temporary directory
+6. If `cleanup=False`, keeps the temporary directory with intermediate files
+
+**Without cleanup** (`cleanup=False`):
+```
+output_path/
+├── _temp_patient_001/
+│   ├── patient_001_th.nii.gz  ← intermediate kept in temp
+│   ├── patient_001_th_sm.nii.gz  ← intermediate kept in temp
+│   ├── patient_001_th_sm_th.nii.gz  ← intermediate kept in temp
+│   └── patient_001.skulled.nii.gz  ← intermediate kept in temp
+├── _temp_patient_002/
+│   ├── patient_002_th.nii.gz  ← intermediate kept in temp
+│   ├── patient_002_th_sm.nii.gz  ← intermediate kept in temp
+│   ├── patient_002_th_sm_th.nii.gz  ← intermediate kept in temp
+│   └── patient_002.skulled.nii.gz  ← intermediate kept in temp
+├── skulled/
+│   ├── patient_001.skulled.clipped.nii.gz
+│   ├── patient_002.skulled.clipped.nii.gz
+│   └── patient_003.skulled.clipped.nii.gz
+└── masks/
+    ├── patient_001.skulled.mask.nii.gz
+    ├── patient_002.skulled.mask.nii.gz
+    └── patient_003.skulled.mask.nii.gz
 ```
 
-### Output Files
+**With cleanup** (`cleanup=True`):
+```
+output_path/
+├── skulled/
+│   ├── patient_001.skulled.clipped.nii.gz
+│   ├── patient_002.skulled.clipped.nii.gz
+│   └── patient_003.skulled.clipped.nii.gz
+└── masks/
+    ├── patient_001.skulled.mask.nii.gz
+    ├── patient_002.skulled.mask.nii.gz
+    └── patient_003.skulled.mask.nii.gz
+```
 
-For each input volume (when `cleanup=False`):
+**Important notes for folder mode**:
+- Temporary directories (`_temp_<PREFIX>/`) are created for each volume during processing
+- If `cleanup=True`, temporary directories are deleted after moving final outputs
+- If `cleanup=False`, temporary directories are kept with their intermediate files
+- This allows you to inspect preprocessing steps or recover intermediate volumes if needed
 
-| File                              | Description                                       | Kept After Cleanup |
-|-----------------------------------|---------------------------------------------------|--------------------|
-| `<PREFIX>_thresholded.nii.gz`     | After initial intensity thresholding              | No                 |
-| `<PREFIX>_smoothed.nii.gz`        | After Gaussian smoothing                          | No                 |
-| `<PREFIX>_mask.nii.gz`            | Binary brain mask from BET                        | Yes                |
-| `<PREFIX>_skull_stripped.nii.gz`  | Final skull-stripped and clipped volume           | Yes                |
+## Output Files
+
+The function generates multiple files during processing:
+
+### Intermediate Files (removed if cleanup=True)
+
+| File                           | Description                                       |
+|--------------------------------|---------------------------------------------------|
+| `<PREFIX>_th.nii.gz`           | After initial thresholding [0-100]               |
+| `<PREFIX>_th_sm.nii.gz`        | After Gaussian smoothing (sigma=1)               |
+| `<PREFIX>_th_sm_th.nii.gz`     | After secondary thresholding [0-100]             |
+| `<PREFIX>.skulled.nii.gz`      | BET output before final clipping                 |
+
+### Final Output Files (always retained)
+
+| File                                  | Description                                       |
+|---------------------------------------|---------------------------------------------------|
+| `<PREFIX>.skulled.mask.nii.gz`        | Binary brain mask from BET                        |
+| `<PREFIX>.skulled.clipped.nii.gz`     | Final skull-stripped and intensity-clipped volume |
+
+**Example**: Input `scan_042.nii.gz` produces:
+- `scan_042.skulled.mask.nii.gz`
+- `scan_042.skulled.clipped.nii.gz`
 
 ## BET Parameters
 
@@ -151,13 +227,13 @@ bet  # Should show BET help message
 - **Pre-centered Volumes**: Input scans should be centered on brain region
 - **No FOV Cropping**: Function preserves original spatial dimensions
 - **FSL Dependency**: FSL must be properly installed and configured
-- **Sequential Processing**: Volumes processed one at a time
-- **Progress Display**: Shows progress bar during processing
+- **Sequential Processing**: Volumes processed one at a time with progress bar (tqdm)
 - **Output Directories**: Automatically created if they don't exist
+- **Temporary Directories**: In folder mode, `_temp_` directories are used during processing
 
 ## Examples
 
-### Basic Usage
+### Basic Usage - Case Mode
 Process dataset with default parameters:
 
 ```python
@@ -170,7 +246,23 @@ skull_CTA_dataset(
     clip_value=(0, 200),
     saving_mode="case"
 )
-# Creates: dataset/skull_stripped/scan_001/scan_001_skull_stripped.nii.gz, ...
+# Creates: dataset/skull_stripped/scan_001/scan_001.skulled.clipped.nii.gz, ...
+```
+
+### Folder Mode Organization
+Separate skull-stripped images and masks:
+
+```python
+skull_CTA_dataset(
+    nii_folder="cta_volumes/",
+    output_path="processed/",
+    f_value=0.1,
+    clip_value=(0, 200),
+    cleanup=True,
+    saving_mode="folder",
+    debug=True
+)
+# Images in processed/skulled/, masks in processed/masks/
 ```
 
 ### With Cleanup
@@ -182,11 +274,27 @@ skull_CTA_dataset(
     output_path="data/processed/",
     f_value=0.1,
     clip_value=(0, 200),
-    cleanup=True,  # Remove thresholded and smoothed intermediates
+    cleanup=True,  # Remove intermediates
     saving_mode="case",
     debug=True
 )
 # Only masks and final skull-stripped volumes retained
+```
+
+### Preserving Intermediates in Folder Mode
+Keep temporary directories for inspection:
+
+```python
+skull_CTA_dataset(
+    nii_folder="data/cta_scans/",
+    output_path="data/processed/",
+    f_value=0.1,
+    clip_value=(0, 200),
+    cleanup=False,  # Keep temp directories with intermediates
+    saving_mode="folder",
+    debug=True
+)
+# Final outputs in skulled/ and masks/, intermediates in _temp_*/ directories
 ```
 
 ### Aggressive Skull Removal
@@ -232,22 +340,6 @@ skull_CTA_dataset(
 )
 ```
 
-### Folder Mode Organization
-All outputs in single directory:
-
-```python
-skull_CTA_dataset(
-    nii_folder="cta_volumes/",
-    output_path="all_stripped/",
-    f_value=0.1,
-    clip_value=(0, 200),
-    cleanup=True,
-    saving_mode="folder",
-    debug=True
-)
-# All processed files in one folder
-```
-
 ### Quality Control Workflow
 Process and verify skull removal:
 
@@ -269,8 +361,8 @@ skull_CTA_dataset(
 
 # Verify a sample result
 original = nib.load("qa/original/sample.nii.gz")
-mask = nib.load("qa/processed/sample/sample_mask.nii.gz")
-stripped = nib.load("qa/processed/sample/sample_skull_stripped.nii.gz")
+mask = nib.load("qa/processed/sample/sample.skulled.mask.nii.gz")
+stripped = nib.load("qa/processed/sample/sample.skulled.clipped.nii.gz")
 
 orig_data = original.get_fdata()
 mask_data = mask.get_fdata()
@@ -295,30 +387,6 @@ print(f"  Stripped intensity: [{stripped_data.min():.1f}, {stripped_data.max():.
 
 if coverage < 15 or coverage > 50:
     print(f"  ⚠️ Warning: Unusual coverage, check f_value setting")
-```
-
-### Testing Different f_values
-Find optimal skull-stripping threshold:
-
-```python
-from nidataset.preprocessing import skull_CTA_dataset
-
-test_f_values = [0.05, 0.1, 0.15, 0.2, 0.3]
-
-for f_val in test_f_values:
-    print(f"\nTesting f_value = {f_val}")
-    
-    skull_CTA_dataset(
-        nii_folder="test_scan/",
-        output_path=f"f_value_test/f_{f_val}/",
-        f_value=f_val,
-        clip_value=(0, 200),
-        cleanup=False,
-        saving_mode="folder",
-        debug=True
-    )
-
-print("\nCompare outputs visually to select optimal f_value")
 ```
 
 ### Multi-Center Dataset Processing
@@ -349,172 +417,40 @@ for center, params in centers.items():
 print("\nAll centers processed")
 ```
 
-### Integration with Vessel Analysis Pipeline
-Complete preprocessing for vessel detection:
+### Using Masks for Registration
+Apply masks to registration workflow:
 
 ```python
-from nidataset.preprocessing import skull_CTA_dataset, mip_dataset
+from nidataset.preprocessing import skull_CTA_dataset, register_CTA_dataset
+import os
+import shutil
 
-# Step 1: Skull stripping
-print("Step 1: Skull stripping...")
+# Step 1: Skull-strip all volumes to generate masks
+print("Step 1: Skull-stripping to generate masks...")
 skull_CTA_dataset(
-    nii_folder="pipeline/raw_cta/",
-    output_path="pipeline/skull_stripped/",
+    nii_folder="raw_scans/",
+    output_path="skull_stripped/",
     f_value=0.1,
     clip_value=(0, 200),
     cleanup=True,
-    saving_mode="case",
+    saving_mode="folder",
     debug=True
 )
 
-# Step 2: Collect skull-stripped files
-import os
-stripped_folder = "pipeline/collected_stripped/"
-os.makedirs(stripped_folder, exist_ok=True)
-
-for case in os.listdir("pipeline/skull_stripped/"):
-    case_path = os.path.join("pipeline/skull_stripped/", case)
-    if os.path.isdir(case_path):
-        stripped_file = f"{case_path}/{case}_skull_stripped.nii.gz"
-        if os.path.exists(stripped_file):
-            shutil.copy(stripped_file, stripped_folder)
-
-# Step 3: Apply MIP to enhance vessels
-print("\nStep 2: Applying MIP enhancement...")
-mip_dataset(
-    nii_folder=stripped_folder,
-    output_path="pipeline/vessel_enhanced/",
-    window_size=15,
-    view="axial",
+# Step 2: Register using generated masks
+print("\nStep 2: Registering with skull-stripped masks...")
+register_CTA_dataset(
+    nii_folder="raw_scans/",
+    mask_folder="skull_stripped/masks/",
+    template_path="template/template.nii.gz",
+    template_mask_path="template/template_mask.nii.gz",
+    output_path="registered/",
     saving_mode="case",
+    cleanup=True,
     debug=True
 )
 
-print("\nPipeline complete: Ready for vessel segmentation")
-```
-
-### Batch Processing with Error Handling
-Process large datasets robustly:
-
-```python
-from nidataset.preprocessing import skull_CTA_dataset
-import os
-
-# First, verify FSL is available
-import subprocess
-try:
-    subprocess.run(['bet'], capture_output=True, check=False)
-    print("✓ FSL/BET is available")
-except FileNotFoundError:
-    print("✗ Error: FSL/BET not found in PATH")
-    print("Please install FSL and configure environment variables")
-    exit(1)
-
-# Process dataset
-try:
-    skull_CTA_dataset(
-        nii_folder="large_dataset/",
-        output_path="large_dataset_processed/",
-        f_value=0.1,
-        clip_value=(0, 200),
-        cleanup=True,
-        saving_mode="case",
-        debug=True
-    )
-    print("\n✓ Processing completed successfully")
-    
-except FileNotFoundError as e:
-    print(f"\n✗ Error: {e}")
-except Exception as e:
-    print(f"\n✗ Unexpected error: {e}")
-```
-
-### Comparing Stripping Methods
-Evaluate different parameter combinations:
-
-```python
-from nidataset.preprocessing import skull_CTA_dataset
-import nibabel as nib
-import numpy as np
-import pandas as pd
-
-# Test different configurations
-configs = [
-    {'f': 0.05, 'clip': (0, 200), 'name': 'aggressive'},
-    {'f': 0.1, 'clip': (0, 200), 'name': 'standard'},
-    {'f': 0.2, 'clip': (0, 200), 'name': 'conservative'}
-]
-
-results = []
-
-for config in configs:
-    print(f"\nTesting {config['name']} configuration...")
-    
-    skull_CTA_dataset(
-        nii_folder="comparison/original/",
-        output_path=f"comparison/{config['name']}/",
-        f_value=config['f'],
-        clip_value=config['clip'],
-        cleanup=False,
-        saving_mode="folder",
-        debug=True
-    )
-    
-    # Analyze result
-    mask = nib.load(f"comparison/{config['name']}/sample_mask.nii.gz")
-    mask_data = mask.get_fdata()
-    
-    coverage = np.sum(mask_data > 0) / np.prod(mask_data.shape) * 100
-    
-    results.append({
-        'configuration': config['name'],
-        'f_value': config['f'],
-        'brain_coverage': coverage
-    })
-
-# Display comparison
-df = pd.DataFrame(results)
-print("\nConfiguration Comparison:")
-print(df.to_string(index=False))
-```
-
-### Creating Visualization for QC
-Generate overlays for quality control:
-
-```python
-import nibabel as nib
-import numpy as np
-from nidataset.preprocessing import skull_CTA_dataset
-
-# Process
-skull_CTA_dataset(
-    nii_folder="visualization/scans/",
-    output_path="visualization/processed/",
-    f_value=0.1,
-    clip_value=(0, 200),
-    cleanup=False,
-    saving_mode="case",
-    debug=True
-)
-
-# Create overlay
-original = nib.load("visualization/scans/sample.nii.gz")
-mask = nib.load("visualization/processed/sample/sample_mask.nii.gz")
-
-orig_data = original.get_fdata()
-mask_data = mask.get_fdata()
-
-# Create edge overlay
-from scipy import ndimage
-edges = ndimage.sobel(mask_data)
-
-overlay = orig_data.copy()
-overlay[edges > 0] = orig_data.max()  # Highlight mask edges
-
-# Save overlay
-overlay_img = nib.Nifti1Image(overlay, original.affine)
-nib.save(overlay_img, "visualization/qc_overlay.nii.gz")
-print("QC overlay created: visualization/qc_overlay.nii.gz")
+print("\nPipeline complete")
 ```
 
 ## Typical Workflow
@@ -545,8 +481,8 @@ skull_CTA_dataset(
 )
 
 # 3. Verify a sample result
-mask = nib.load("data/skull_stripped/sample/sample_mask.nii.gz")
-stripped = nib.load("data/skull_stripped/sample/sample_skull_stripped.nii.gz")
+mask = nib.load("data/skull_stripped/sample/sample.skulled.mask.nii.gz")
+stripped = nib.load("data/skull_stripped/sample/sample.skulled.clipped.nii.gz")
 
 mask_data = mask.get_fdata()
 coverage = np.sum(mask_data > 0) / np.prod(mask_data.shape) * 100

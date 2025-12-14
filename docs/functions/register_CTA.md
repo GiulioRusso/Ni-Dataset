@@ -14,10 +14,17 @@ register_CTA(
     mask_path: str,
     template_path: str,
     template_mask_path: str,
-    output_image_path: str,
-    output_transformation_path: str,
+    output_path: str,
     cleanup: bool = False,
-    debug: bool = False
+    debug: bool = False,
+    number_histogram_bins: int = 128,
+    learning_rate: float = 0.0001,
+    number_iterations: int = 2000,
+    initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
+    sigma_first: float = 2.0,
+    sigma_second: float = 3.0,
+    metric_sampling_percentage: float = 0.5,
+    initial_transform = None
 ) -> None
 ```
 
@@ -27,7 +34,7 @@ This function aligns a medical imaging volume to a reference template through an
 
 **Registration pipeline**:
 1. **Preprocessing**: Sequential Gaussian filtering with intensity clipping
-2. **Initialization**: Moment-based alignment for initial positioning
+2. **Initialization**: Moment-based or geometry-based alignment for initial positioning
 3. **Optimization**: Gradient descent with mutual information metric
 4. **Transform saving**: Parameters stored for reapplication or analysis
 
@@ -46,14 +53,21 @@ This is essential for:
 | `mask_path`                  | `str`  | *required* | Path to the brain mask for the input volume.                                                        |
 | `template_path`              | `str`  | *required* | Path to the reference template volume.                                                              |
 | `template_mask_path`         | `str`  | *required* | Path to the template's brain mask.                                                                  |
-| `output_image_path`          | `str`  | *required* | Directory where registered volume and intermediate files will be saved.                             |
-| `output_transformation_path` | `str`  | *required* | Directory where transformation file (`.tfm`) will be saved.                                         |
+| `output_path`                | `str`  | *required* | Directory where registered volume and intermediate files will be saved.                             |
 | `cleanup`                    | `bool` | `False`    | If `True`, deletes intermediate Gaussian-filtered file after registration.                          |
 | `debug`                      | `bool` | `False`    | If `True`, prints detailed information about saved file paths.                                      |
+| `number_histogram_bins`      | `int`  | `128`      | Number of histogram bins for Mattes Mutual Information metric. Common values: 10, 50, 64, 128.     |
+| `learning_rate`              | `float`| `0.0001`   | Learning rate for Gradient Descent optimizer. Common values: 0.0001-1.0.                            |
+| `number_iterations`          | `int`  | `2000`     | Maximum number of optimization iterations. Common values: 500-5000.                                 |
+| `initialization_strategy`    | `int`  | `MOMENTS`  | Strategy for initializing transformation: `MOMENTS` (center of mass) or `GEOMETRY` (center/orientation). |
+| `sigma_first`                | `float`| `2.0`      | Standard deviation for the first Gaussian smoothing filter.                                         |
+| `sigma_second`               | `float`| `3.0`      | Standard deviation for the second Gaussian smoothing filter.                                        |
+| `metric_sampling_percentage` | `float`| `0.5`      | Percentage of voxels to sample for metric evaluation (0.0-1.0). Default: 0.5 (50%).               |
+| `initial_transform`          | `None` | `None`     | Initial transformation object. If `None`, defaults to `sitk.Euler3DTransform()`.                   |
 
 ## Returns
 
-`None` – The function saves registered volume and transformation to disk.
+`None` — The function saves registered volume and transformation to disk.
 
 ## Output Files
 
@@ -82,7 +96,7 @@ Eliminates artifacts from reconstruction or air regions.
 
 ### Step 2: Initial Gaussian Smoothing
 ```python
-image = gaussian_filter(image, sigma=2.0)
+image = gaussian_filter(image, sigma=sigma_first)  # default: 2.0
 ```
 Reduces noise while preserving structural information.
 
@@ -94,7 +108,7 @@ Removes extreme intensities (bone, metal artifacts, or contrast pooling).
 
 ### Step 4: Secondary Gaussian Smoothing
 ```python
-image = gaussian_filter(image, sigma=3.0)
+image = gaussian_filter(image, sigma=sigma_second)  # default: 3.0
 ```
 Further smooths for robust feature matching.
 
@@ -107,30 +121,32 @@ Normalizes intensity range to [0, 100] for consistent metric calculation.
 ## Registration Method Details
 
 ### Initialization
-**Method**: Centered Transform Initializer with MOMENTS
-- Aligns centers of mass between volumes
-- Uses mask-based moment calculation
+**Method**: Centered Transform Initializer
+- **Strategy Options**:
+  - `MOMENTS` (default): Aligns centers of mass between volumes using mask-based moment calculation
+  - `GEOMETRY`: Aligns based on image geometry (center and orientation)
 - Provides robust starting point for optimization
 
 ### Metric
 **Type**: Mattes Mutual Information
-- **Histogram bins**: 50 for discrete intensity approximation
-- **Sampling strategy**: Random sampling at 50% of voxels
-- **Masking**: Constrained to brain regions only
+- **Histogram bins**: Configurable (default: 128) for discrete intensity approximation
+- **Sampling strategy**: Random sampling at configurable percentage (default: 50% of voxels)
+- **Masking**: Constrained to brain regions only (both fixed and moving masks)
 - **Advantage**: Robust to intensity variations and scanner differences
 
 ### Optimization
 **Algorithm**: Gradient Descent
-- **Learning rate**: 1.0 (estimated once at start)
-- **Iterations**: 500 maximum
+- **Learning rate**: Configurable (default: 0.0001), estimated once at start
+- **Iterations**: Configurable maximum (default: 2000)
 - **Scaling**: Physical shift-based for balanced optimization
 - **Convergence**: Automatic when improvement plateaus
 
 ### Transform Type
-**Model**: Euler3D (Rigid transformation)
+**Model**: Euler3D (Rigid transformation) by default, customizable
 - 6 degrees of freedom: 3 rotations + 3 translations
 - Preserves shape and size
 - Suitable for inter-subject brain alignment
+- Can be replaced with other transform types via `initial_transform` parameter
 
 ### Interpolation
 **Method**: Linear interpolation
@@ -143,7 +159,6 @@ Normalizes intensity range to [0, 100] for consistent metric calculation.
 |----------------------|--------------------------------------------------------------------|
 | `FileNotFoundError`  | Any required input file does not exist                            |
 | `ValueError`         | Input file is not in `.nii.gz` format                             |
-| `ValueError`         | Input has invalid dimensions                                      |
 
 ## Usage Notes
 
@@ -153,6 +168,7 @@ Normalizes intensity range to [0, 100] for consistent metric calculation.
 - **Output Directories**: Automatically created if they don't exist
 - **Transform Format**: SimpleITK `.tfm` format (reusable)
 - **Original Volume**: Final registration uses original (not filtered) volume
+- **Parameter Tuning**: Registration quality can be improved by adjusting histogram bins, learning rate, iterations, and sampling percentage
 
 ## Examples
 
@@ -167,14 +183,58 @@ register_CTA(
     mask_path="masks/patient_001_mask.nii.gz",
     template_path="atlas/standard_template.nii.gz",
     template_mask_path="atlas/standard_mask.nii.gz",
-    output_image_path="registered/",
-    output_transformation_path="transforms/",
+    output_path="registered/",
     cleanup=False,
     debug=True
 )
 # Prints:
 # Registered image saved at: 'registered/patient_001_registered.nii.gz'
-# Transformation file saved at: 'transforms/patient_001_transformation.tfm'
+# Transformation file saved at: 'registered/patient_001_transformation.tfm'
+```
+
+### Custom Registration Parameters
+Fine-tune registration for better quality:
+
+```python
+import SimpleITK as sitk
+from nidataset.preprocessing import register_CTA
+
+register_CTA(
+    nii_path="scans/patient_001.nii.gz",
+    mask_path="masks/patient_001_mask.nii.gz",
+    template_path="atlas/standard_template.nii.gz",
+    template_mask_path="atlas/standard_mask.nii.gz",
+    output_path="registered/",
+    number_histogram_bins=64,
+    learning_rate=0.01,
+    number_iterations=1000,
+    initialization_strategy=sitk.CenteredTransformInitializerFilter.GEOMETRY,
+    sigma_first=1.5,
+    sigma_second=2.5,
+    metric_sampling_percentage=0.7,
+    debug=True
+)
+```
+
+### Using Custom Initial Transform
+Start with an affine transform instead of rigid:
+
+```python
+import SimpleITK as sitk
+from nidataset.preprocessing import register_CTA
+
+# Create a custom initial transform
+affine_transform = sitk.AffineTransform(3)
+
+register_CTA(
+    nii_path="scans/patient_001.nii.gz",
+    mask_path="masks/patient_001_mask.nii.gz",
+    template_path="atlas/standard_template.nii.gz",
+    template_mask_path="atlas/standard_mask.nii.gz",
+    output_path="registered/",
+    initial_transform=affine_transform,
+    debug=True
+)
 ```
 
 ### With Cleanup
@@ -186,8 +246,7 @@ register_CTA(
     mask_path="data/scan_mask.nii.gz",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="output/images/",
-    output_transformation_path="output/transforms/",
+    output_path="output/",
     cleanup=True,  # Removes Gaussian-filtered intermediate
     debug=True
 )
@@ -208,8 +267,7 @@ register_CTA(
     mask_path="qa/test_mask.nii.gz",
     template_path="qa/template.nii.gz",
     template_mask_path="qa/template_mask.nii.gz",
-    output_image_path="qa/output/",
-    output_transformation_path="qa/transforms/",
+    output_path="qa/output/",
     debug=True
 )
 
@@ -252,8 +310,7 @@ register_CTA(
     mask_path="inspection/scan_mask.nii.gz",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="inspection/output/",
-    output_transformation_path="inspection/transforms/",
+    output_path="inspection/output/",
     cleanup=False,  # Keep intermediate
     debug=True
 )
@@ -287,13 +344,12 @@ register_CTA(
     mask_path="structural_mask.nii.gz",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="registered/",
-    output_transformation_path="transforms/",
+    output_path="registered/",
     debug=True
 )
 
 # Step 2: Apply same transformation to functional scan
-transform = sitk.ReadTransform("transforms/structural_transformation.tfm")
+transform = sitk.ReadTransform("registered/structural_transformation.tfm")
 template = sitk.ReadImage("template.nii.gz")
 functional = sitk.ReadImage("functional.nii.gz")
 
@@ -325,13 +381,12 @@ register_CTA(
     mask_path="analysis/scan_mask.nii.gz",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="analysis/output/",
-    output_transformation_path="analysis/transforms/",
+    output_path="analysis/output/",
     debug=True
 )
 
 # Load transformation
-transform = sitk.ReadTransform("analysis/transforms/scan_transformation.tfm")
+transform = sitk.ReadTransform("analysis/output/scan_transformation.tfm")
 params = transform.GetParameters()
 
 print("\nTransformation Analysis:")
@@ -379,8 +434,7 @@ for scan_file in scans:
             mask_path=f"masks/{scan_file}",
             template_path=template,
             template_mask_path=template_mask,
-            output_image_path="registered/",
-            output_transformation_path="transforms/",
+            output_path="registered/",
             cleanup=True,
             debug=True
         )
@@ -396,96 +450,59 @@ if failed_scans:
 ```
 
 ### Comparing Registration Quality
-Register with and without preprocessing to assess impact:
+Register with different parameters to assess impact:
 
 ```python
 import nibabel as nib
 import numpy as np
 from nidataset.preprocessing import register_CTA
 
-# Standard registration with preprocessing
+# Standard registration
 register_CTA(
     nii_path="comparison/scan.nii.gz",
     mask_path="comparison/scan_mask.nii.gz",
     template_path="template.nii.gz",
     template_mask_path="template_mask.nii.gz",
-    output_image_path="comparison/with_preproc/",
-    output_transformation_path="comparison/transforms_preproc/",
+    output_path="comparison/standard/",
     cleanup=False,
     debug=True
 )
 
-# Load template and results
+# High-quality registration
+register_CTA(
+    nii_path="comparison/scan.nii.gz",
+    mask_path="comparison/scan_mask.nii.gz",
+    template_path="template.nii.gz",
+    template_mask_path="template_mask.nii.gz",
+    output_path="comparison/high_quality/",
+    number_histogram_bins=256,
+    learning_rate=0.001,
+    number_iterations=5000,
+    metric_sampling_percentage=0.8,
+    cleanup=False,
+    debug=True
+)
+
+# Load and compare results
 template_data = nib.load("template.nii.gz").get_fdata()
 template_mask = nib.load("template_mask.nii.gz").get_fdata()
-registered_data = nib.load("comparison/with_preproc/scan_registered.nii.gz").get_fdata()
+registered_standard = nib.load("comparison/standard/scan_registered.nii.gz").get_fdata()
+registered_hq = nib.load("comparison/high_quality/scan_registered.nii.gz").get_fdata()
 
 # Calculate metrics within brain
 mask_indices = template_mask > 0
 template_roi = template_data[mask_indices]
-registered_roi = registered_data[mask_indices]
+standard_roi = registered_standard[mask_indices]
+hq_roi = registered_hq[mask_indices]
 
-# Correlation
-correlation = np.corrcoef(template_roi, registered_roi)[0, 1]
+# Correlations
+corr_standard = np.corrcoef(template_roi, standard_roi)[0, 1]
+corr_hq = np.corrcoef(template_roi, hq_roi)[0, 1]
 
-# Mean squared error
-mse = np.mean((template_roi - registered_roi) ** 2)
-
-print(f"\nRegistration Quality Metrics:")
-print(f"  Correlation: {correlation:.3f}")
-print(f"  MSE: {mse:.2f}")
-print(f"  Registration successful: {correlation > 0.7 and mse < 1000}")
-```
-
-### Creating Visualization Overlays
-Generate overlay for visual assessment:
-
-```python
-import nibabel as nib
-import numpy as np
-from nidataset.preprocessing import register_CTA
-
-# Register
-register_CTA(
-    nii_path="visualization/scan.nii.gz",
-    mask_path="visualization/scan_mask.nii.gz",
-    template_path="template.nii.gz",
-    template_mask_path="template_mask.nii.gz",
-    output_image_path="visualization/output/",
-    output_transformation_path="visualization/transforms/",
-    debug=True
-)
-
-# Load template and registered
-template = nib.load("template.nii.gz")
-registered = nib.load("visualization/output/scan_registered.nii.gz")
-
-template_data = template.get_fdata()
-registered_data = registered.get_fdata()
-
-# Create checkerboard overlay for alignment check
-def create_checkerboard(img1, img2, block_size=20):
-    overlay = np.copy(img1)
-    for i in range(0, img1.shape[0], block_size):
-        for j in range(0, img1.shape[1], block_size):
-            if (i // block_size + j // block_size) % 2 == 0:
-                overlay[i:i+block_size, j:j+block_size] = img2[i:i+block_size, j:j+block_size]
-    return overlay
-
-# Create overlay for middle slice
-mid_slice = template_data.shape[2] // 2
-checkerboard = create_checkerboard(
-    template_data[:, :, mid_slice],
-    registered_data[:, :, mid_slice]
-)
-
-# Save
-overlay_vol = np.zeros_like(template_data)
-overlay_vol[:, :, mid_slice] = checkerboard
-overlay_img = nib.Nifti1Image(overlay_vol, template.affine)
-nib.save(overlay_img, "visualization/checkerboard_overlay.nii.gz")
-
-print("Checkerboard overlay created for alignment verification")
+print(f"\nRegistration Quality Comparison:")
+print(f"  Standard correlation: {corr_standard:.3f}")
+print(f"  High-quality correlation: {corr_hq:.3f}")
+print(f"  Improvement: {corr_hq - corr_standard:.3f}")
 ```
 
 ### Integration with Pipeline
@@ -494,6 +511,7 @@ Use registration in a complete preprocessing workflow:
 ```python
 from nidataset.preprocessing import register_CTA
 from nidataset.volume import generate_brain_mask, crop_and_pad
+import os
 
 def preprocess_scan(scan_path, template_path, template_mask_path, output_folder):
     """Complete preprocessing pipeline with registration."""
@@ -517,8 +535,7 @@ def preprocess_scan(scan_path, template_path, template_mask_path, output_folder)
         mask_path=mask_path,
         template_path=template_path,
         template_mask_path=template_mask_path,
-        output_image_path=f"{output_folder}/registered/",
-        output_transformation_path=f"{output_folder}/transforms/",
+        output_path=f"{output_folder}/registered/",
         cleanup=True,
         debug=True
     )
@@ -561,8 +578,7 @@ register_CTA(
     mask_path=scan_mask,
     template_path=template,
     template_mask_path=template_mask,
-    output_image_path="registered/",
-    output_transformation_path="transforms/",
+    output_path="registered/",
     cleanup=True,  # Save disk space
     debug=True
 )
@@ -580,3 +596,14 @@ print(f"Registered shape: {registered.shape}")
 # - Group comparisons
 # - Atlas-based segmentation
 ```
+
+## Parameter Tuning Guide
+
+| Parameter | Effect | Recommendations |
+|-----------|--------|-----------------|
+| `number_histogram_bins` | Higher values = finer intensity discretization | 64-128 for most cases; 256 for high-contrast images |
+| `learning_rate` | Higher values = faster but less stable convergence | 0.0001-0.001 for standard; 0.01+ for fast initial alignment |
+| `number_iterations` | More iterations = potential for better alignment | 1000-2000 standard; 3000-5000 for difficult cases |
+| `metric_sampling_percentage` | Higher sampling = more accurate but slower | 0.3-0.5 for speed; 0.7-1.0 for accuracy |
+| `sigma_first` / `sigma_second` | Controls smoothing strength | Lower for sharp features; higher for noisy images |
+| `initialization_strategy` | MOMENTS vs GEOMETRY | MOMENTS for asymmetric anatomy; GEOMETRY for symmetric |

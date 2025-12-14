@@ -63,18 +63,18 @@ The function generates multiple files during processing:
 | `<PREFIX>_th.nii.gz`           | After initial thresholding [0-100]               |
 | `<PREFIX>_th_sm.nii.gz`        | After Gaussian smoothing (sigma=1)               |
 | `<PREFIX>_th_sm_th.nii.gz`     | After secondary thresholding [0-100]             |
-| `<PREFIX>.skulled.nii.gz`      | BET output before final clipping                 |
+| `<PREFIX>_skulled.nii.gz`      | BET output before final clipping                 |
 
 ### Final Output Files (always retained)
 
 | File                                  | Description                                       |
 |---------------------------------------|---------------------------------------------------|
-| `<PREFIX>.skulled_mask.nii.gz`        | Binary brain mask from BET                        |
-| `<PREFIX>.skulled.clipped.nii.gz`     | Final skull-stripped and intensity-clipped volume |
+| `<PREFIX>_skulled_mask.nii.gz`        | Binary brain mask from BET                        |
+| `<PREFIX>_skulled_clipped.nii.gz`     | Final skull-stripped and intensity-clipped volume |
 
 **Example**: Input `scan_042.nii.gz` produces:
-- `scan_042.skulled_mask.nii.gz`
-- `scan_042.skulled.clipped.nii.gz`
+- `scan_042_skulled_mask.nii.gz`
+- `scan_042_skulled_clipped.nii.gz`
 
 ## Processing Pipeline Details
 
@@ -98,7 +98,7 @@ Re-applies [0, 100] clipping after smoothing to ensure intensity range.
 
 ### Step 4: BET Skull-Stripping
 ```bash
-bet input_th_sm_th.nii.gz output.skulled.nii.gz -R -f 0.1 -g 0 -m
+bet input_th_sm_th.nii.gz output_skulled.nii.gz -R -f 0.1 -g 0 -m
 ```
 **Parameters**:
 - `-R`: Robust brain center estimation
@@ -206,8 +206,8 @@ skull_CTA(
     f_value=0.1,
     clip_value=(0, 200)
 )
-# Output: processed/patient_001/patient_001.skulled.clipped.nii.gz
-#         processed/patient_001/patient_001.skulled_mask.nii.gz
+# Output: processed/patient_001/patient_001_skulled_clipped.nii.gz
+#         processed/patient_001/patient_001_skulled_mask.nii.gz
 ```
 
 ### With Cleanup
@@ -222,8 +222,8 @@ skull_CTA(
     cleanup=True,  # Remove intermediate files
     debug=True
 )
-# Prints: Skull-stripped image saved at: 'data/processed/scan.skulled.clipped.nii.gz'
-#         Skull mask saved at: 'data/processed/scan.skulled_mask.nii.gz'
+# Prints: Skull-stripped image saved at: 'data/processed/scan_skulled_clipped.nii.gz'
+#         Skull mask saved at: 'data/processed/scan_skulled_mask.nii.gz'
 ```
 
 ### Aggressive Skull Removal
@@ -285,8 +285,8 @@ skull_CTA(
 # - test_scan_th.nii.gz (after initial threshold)
 # - test_scan_th_sm.nii.gz (after smoothing)
 # - test_scan_th_sm_th.nii.gz (after second threshold)
-# - test_scan.skulled.nii.gz (BET output)
-# - test_scan.skulled.clipped.nii.gz (final result)
+# - test_scan_skulled.nii.gz (BET output)
+# - test_scan_skulled_clipped.nii.gz (final result)
 ```
 
 ### Verifying FSL Installation
@@ -352,7 +352,7 @@ for f_val in test_f_values:
     )
     
     # Analyze brain coverage
-    mask = nib.load(f"{output_dir}/sample.skulled_mask.nii.gz")
+    mask = nib.load(f"{output_dir}/sample_skulled_mask.nii.gz")
     mask_data = mask.get_fdata()
     
     coverage = np.sum(mask_data > 0) / np.prod(mask_data.shape) * 100
@@ -387,8 +387,8 @@ skull_CTA(
 
 # Load results
 original = nib.load("qa/original.nii.gz")
-mask = nib.load("qa/processed/original.skulled_mask.nii.gz")
-stripped = nib.load("qa/processed/original.skulled.clipped.nii.gz")
+mask = nib.load("qa/processed/original_skulled_mask.nii.gz")
+stripped = nib.load("qa/processed/original_skulled_clipped.nii.gz")
 
 orig_data = original.get_fdata()
 mask_data = mask.get_fdata()
@@ -442,7 +442,7 @@ skull_CTA(
 
 # Load original and mask
 original = nib.load("visualization/scan.nii.gz")
-mask = nib.load("visualization/processed/scan.skulled_mask.nii.gz")
+mask = nib.load("visualization/processed/scan_skulled_mask.nii.gz")
 
 orig_data = original.get_fdata()
 mask_data = mask.get_fdata()
@@ -521,7 +521,7 @@ skull_CTA(
 # Step 2: Enhance vessels with MIP
 print("\nStep 2: Enhancing vessels...")
 mip(
-    nii_path="pipeline/skull_stripped/original.skulled.clipped.nii.gz",
+    nii_path="pipeline/skull_stripped/original_skulled_clipped.nii.gz",
     output_path="pipeline/vessel_enhanced/",
     window_size=15,
     view="axial",
@@ -603,8 +603,8 @@ skull_CTA(
 )
 
 # 3. Verify results
-mask = nib.load("data/skull_stripped/angiography.skulled_mask.nii.gz")
-stripped = nib.load("data/skull_stripped/angiography.skulled.clipped.nii.gz")
+mask = nib.load("data/skull_stripped/angiography_skulled_mask.nii.gz")
+stripped = nib.load("data/skull_stripped/angiography_skulled_clipped.nii.gz")
 
 mask_data = mask.get_fdata()
 coverage = np.sum(mask_data > 0) / np.prod(mask_data.shape) * 100

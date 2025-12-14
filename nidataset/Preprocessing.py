@@ -95,9 +95,9 @@ def skull_CTA(nii_path: str,
     th_img       = os.path.join(output_path, f"{base_name}_th.nii.gz")
     th_sm_img    = os.path.join(output_path, f"{base_name}_th_sm.nii.gz")
     th_sm_th_img = os.path.join(output_path, f"{base_name}_th_sm_th.nii.gz")
-    skulled_img  = os.path.join(output_path, f"{base_name}.skulled.nii.gz")
-    mask_img     = os.path.join(output_path, f"{base_name}.skulled_mask.nii.gz")
-    clipped_img  = os.path.join(output_path, f"{base_name}.skulled.clipped.nii.gz")
+    skulled_img  = os.path.join(output_path, f"{base_name}_skulled.nii.gz")
+    mask_img     = os.path.join(output_path, f"{base_name}_skulled_mask.nii.gz")
+    clipped_img  = os.path.join(output_path, f"{base_name}_skulled_clipped.nii.gz")
 
     # threshold [0-100], smoothing, threshold [0-100]
     try:
@@ -150,7 +150,7 @@ def skull_CTA_dataset(nii_folder: str,
     and applies the ``skull_CTA`` processing pipeline, which includes
     intensity thresholding, Gaussian smoothing, BET-based skull-stripping,
     and intensity clipping. Processed files can be saved either in a dedicated
-    subdirectory per case or all together in a single output folder.
+    subdirectory per case or organized into separate folders for images and masks.
 
     .. note::
        - All CTA volumes must already be centered on the brain region.
@@ -160,6 +160,8 @@ def skull_CTA_dataset(nii_folder: str,
          (tools used: ``fslmaths``, ``bet``).
        - When using FSL, scripts must be executed from a terminal to ensure
          correct environment variable detection (e.g., ``python3 main.py``).
+       - In folder mode, temporary directories are used during processing and
+         are preserved if ``cleanup=False``.
 
     :param nii_folder:
         Directory containing the input ``.nii.gz`` files.
@@ -176,13 +178,16 @@ def skull_CTA_dataset(nii_folder: str,
 
     :param cleanup:
         If ``True``, deletes intermediate thresholded and smoothed images.
+        In folder mode, also deletes temporary directories.
         The mask and the final clipped CTA image are always retained.
 
     :param saving_mode:
         Determines how outputs are organized:
         
         - ``"case"`` — creates one subfolder per input file (recommended for datasets).  
-        - ``"folder"`` — saves all processed outputs into a single directory.
+        - ``"folder"`` — saves all skull-stripped images into ``skulled/`` subfolder 
+          and all masks into ``masks/`` subfolder. Temporary directories are kept
+          if ``cleanup=False``.
 
     :param debug:
         If ``True``, prints detailed information about the skull-stripping
@@ -223,15 +228,14 @@ def skull_CTA_dataset(nii_folder: str,
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    os.makedirs(output_path, exist_ok=True)
 
-    # for "view" mode, create a single folder to store all outputs
+    # for "folder" mode, create subdirectories for skulled images and masks
     if saving_mode == "folder":
-        view_output_dir = os.path.join(output_path)
-        os.makedirs(view_output_dir, exist_ok=True)
-    else:
-        view_output_dir = None
+        skulled_dir = os.path.join(output_path, "skulled")
+        masks_dir = os.path.join(output_path, "masks")
+        os.makedirs(skulled_dir, exist_ok=True)
+        os.makedirs(masks_dir, exist_ok=True)
 
     # process files with a progress bar
     for nii_file in tqdm(nii_files, desc="Skull-stripping NIfTI files", unit="file"):
@@ -254,18 +258,42 @@ def skull_CTA_dataset(nii_folder: str,
                 debug=debug
             )
 
-        else:  # saving_mode = "view"
+        else:  # saving_mode = "folder"
+            # for folder mode, process to a temporary location
+            temp_output_dir = os.path.join(output_path, f"_temp_{prefix}")
+            os.makedirs(temp_output_dir, exist_ok=True)
+            
+            # process with cleanup=False to keep all files in temp directory
             skull_CTA(
                 nii_path=nii_path,
-                output_path=view_output_dir,
+                output_path=temp_output_dir,
                 f_value=f_value,
                 clip_value=clip_value,
-                cleanup=cleanup,
+                cleanup=False,
                 debug=debug
             )
+            
+            # move skull-stripped image to skulled folder
+            src_skulled = os.path.join(temp_output_dir, f"{prefix}_skulled_clipped.nii.gz")
+            dst_skulled = os.path.join(skulled_dir, f"{prefix}_skulled_clipped.nii.gz")
+            if os.path.exists(src_skulled):
+                os.rename(src_skulled, dst_skulled)
+            
+            # move mask to masks folder
+            src_mask = os.path.join(temp_output_dir, f"{prefix}_skulled_mask.nii.gz")
+            dst_mask = os.path.join(masks_dir, f"{prefix}_skulled_mask.nii.gz")
+            if os.path.exists(src_mask):
+                os.rename(src_mask, dst_mask)
+            
+            # if cleanup is True, remove the temporary directory
+            if cleanup and os.path.exists(temp_output_dir):
+                # remove all files in temp directory
+                for file in os.listdir(temp_output_dir):
+                    os.remove(os.path.join(temp_output_dir, file))
+                os.rmdir(temp_output_dir)
 
     if debug:
-        print(f"Skull-stripping completed for all files in '{nii_folder}'.")
+        print(f"\nSkull-stripping completed for all files in '{nii_folder}'.")
 
     
 def mip(nii_path: str,
@@ -283,7 +311,7 @@ def mip(nii_path: str,
 
     The resulting file is saved as:
 
-        ``<FILENAME>_mip_<VIEW>.nii.gz``
+        ``<PREFIX>_mip_<VIEW>.nii.gz``
 
     .. note::
        - This is **not** a global projection. Each output slice is generated
@@ -411,7 +439,7 @@ def mip_dataset(nii_folder: str,
     :func:`mip`, producing a local MIP volume with identical shape to the
     original. The output filenames follow the convention:
 
-        ``<FILENAME>_mip_<VIEW>.nii.gz``
+        ``<PREFIX>_mip_<VIEW>.nii.gz``
 
     Depending on ``saving_mode``, the output can be organized either into a
     dedicated folder per case or collected into a single view-specific
@@ -531,7 +559,7 @@ def resampling(nii_path: str,
     dimensions of the volume are maintained when interpolating the data into the
     new ``desired_volume`` grid. The output is saved as:
 
-        ``<FILENAME>_resampled.nii.gz``
+        ``<PREFIX>_resampled.nii.gz``
 
     .. note::
        - Only 3D NIfTI files (shape ``(X, Y, Z)``) are supported.
@@ -631,7 +659,7 @@ def resampling_dataset(nii_folder: str,
     voxel spacing consistent with the requested ``desired_volume``. Each output
     file is saved as:
 
-        ``<FILENAME>_resampled.nii.gz``
+        ``<PREFIX>_resampled.nii.gz``
 
     .. note::
        - Only 3D ``.nii.gz`` files are processed.
@@ -724,10 +752,17 @@ def register_CTA(nii_path: str,
                  mask_path: str,
                  template_path: str,
                  template_mask_path: str,
-                 output_image_path: str,
-                 output_transformation_path: str,
+                 output_path: str,
                  cleanup: bool = False,
-                 debug: bool = False) -> None:
+                 debug: bool = False,
+                 number_histogram_bins: int = 128,
+                 learning_rate: float = 0.0001,
+                 number_iterations: int = 2000,
+                 initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
+                 sigma_first: float = 2.0,
+                 sigma_second: float = 3.0,
+                 metric_sampling_percentage: float = 0.5,
+                 initial_transform = None) -> None:
     """
     Registers a CTA volume to a reference template using Mutual Information.
     The pipeline applies Gaussian-based preprocessing on the CTA, loads the
@@ -738,8 +773,8 @@ def register_CTA(nii_path: str,
         <PREFIX>_transformation.tfm
 
     .. note::
-       - The registration uses a Moment-based initializer, Mattes Mutual 
-         Information, and Gradient Descent optimization.
+       - The registration uses a configurable initializer (MOMENTS or GEOMETRY), 
+         Mattes Mutual Information, and Gradient Descent optimization.
        - The CTA undergoes low/high-intensity suppression and two sequential
          Gaussian smoothings before registration.
        - The template and CTA masks are used to constrain the metric.
@@ -756,12 +791,9 @@ def register_CTA(nii_path: str,
     :param template_mask_path:
         Path to the template mask, used as the fixed-image mask.
 
-    :param output_image_path:
-        Directory where the registered CTA and temporary filtered CTA will be
-        saved. Created if it does not exist.
-
-    :param output_transformation_path:
-        Directory where the transformation (``.tfm``) file will be saved.
+    :param output_path:
+        Directory where all output files will be saved (registered CTA, 
+        transformation, and temporary filtered CTA). Created if it does not exist.
 
     :param cleanup:
         If ``True``, deletes the intermediate
@@ -769,6 +801,43 @@ def register_CTA(nii_path: str,
 
     :param debug:
         If ``True``, prints detailed information about the registration process.
+
+    :param number_histogram_bins:
+        Number of histogram bins for Mattes Mutual Information metric.
+        Default: 128. Common values: 10, 50, 64, 128.
+
+    :param learning_rate:
+        Learning rate for Gradient Descent optimizer.
+        Default: 0.0001. Common values: 0.0001-1.0.
+
+    :param number_iterations:
+        Maximum number of optimization iterations.
+        Default: 2000. Common values: 500-5000.
+
+    :param initialization_strategy:
+        Strategy for initializing the transformation. Options:
+        
+        - ``sitk.CenteredTransformInitializerFilter.MOMENTS`` (default) — 
+          align based on image moments (center of mass)
+        - ``sitk.CenteredTransformInitializerFilter.GEOMETRY`` — 
+          align based on image geometry (center and orientation)
+
+    :param sigma_first:
+        Standard deviation for the first Gaussian smoothing filter.
+        Default: 2.0.
+
+    :param sigma_second:
+        Standard deviation for the second Gaussian smoothing filter.
+        Default: 3.0.
+
+    :param metric_sampling_percentage:
+        Percentage of voxels to sample for metric evaluation (0.0-1.0).
+        Default: 0.5 (50%).
+
+    :param initial_transform:
+        Initial transformation object. If ``None``, defaults to 
+        ``sitk.Euler3DTransform()``. Can be any SimpleITK transform type
+        (e.g., ``sitk.Euler3DTransform()``, ``sitk.AffineTransform(3)``).
 
     :raises FileNotFoundError:
         If any input file does not exist.
@@ -779,15 +848,29 @@ def register_CTA(nii_path: str,
     Example
     -------
     >>> from nidataset.preprocessing import register_CTA
+    >>> import SimpleITK as sitk
     >>>
+    >>> # basic usage with default parameters
     >>> register_CTA(
     ...     nii_path="dataset/case001.nii.gz",
     ...     mask_path="dataset/case001_mask.nii.gz",
     ...     template_path="templates/CTA_template.nii.gz",
     ...     template_mask_path="templates/CTA_template_mask.nii.gz",
-    ...     output_image_path="output/registered_images/",
-    ...     output_transformation_path="output/transforms/",
-    ...     cleanup=True,
+    ...     output_path="output/case001/",
+    ...     cleanup=True
+    ... )
+    >>>
+    >>> # custom registration parameters
+    >>> register_CTA(
+    ...     nii_path="dataset/case001.nii.gz",
+    ...     mask_path="dataset/case001_mask.nii.gz",
+    ...     template_path="templates/CTA_template.nii.gz",
+    ...     template_mask_path="templates/CTA_template_mask.nii.gz",
+    ...     output_path="output/case001/",
+    ...     number_histogram_bins=64,
+    ...     learning_rate=0.01,
+    ...     number_iterations=1000,
+    ...     initialization_strategy=sitk.CenteredTransformInitializerFilter.GEOMETRY,
     ...     debug=True
     ... )
     """
@@ -801,28 +884,27 @@ def register_CTA(nii_path: str,
     if not nii_path.endswith(".nii.gz"):
         raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
     
-    # create output directories if they do not exist
-    os.makedirs(output_image_path, exist_ok=True)
-    os.makedirs(output_transformation_path, exist_ok=True)
+    # create output directory if it does not exist
+    os.makedirs(output_path, exist_ok=True)
     
     # extract case number
-    prefix = os.path.basename(nii_path).split('-')[0]
+    prefix = os.path.basename(nii_path).split('.nii.gz')[0]
     
     # paths for saving outputs
-    transformation_path = os.path.join(output_transformation_path, f'{prefix}_transformation.tfm')
-    registered_path = os.path.join(output_image_path, f'{prefix}_registered.nii.gz')
+    transformation_path = os.path.join(output_path, f'{prefix}_transformation.tfm')
+    registered_path = os.path.join(output_path, f'{prefix}_registered.nii.gz')
     
     # load CTA image
     image = nib.load(nii_path).get_fdata().astype(np.float32)
     
     # apply preprocessing steps
     image[image < 0] = 0  # remove negative values
-    image = gaussian_filter(image, sigma=2.0)  # first Gaussian filter
+    image = gaussian_filter(image, sigma=sigma_first)  # first Gaussian filter
     image[image > 95] = 0  # remove high-intensity values
-    image = gaussian_filter(image, sigma=3.0)  # second Gaussian filter
+    image = gaussian_filter(image, sigma=sigma_second)  # second Gaussian filter
     
     # save preprocessed CTA
-    image_gaussian_path = os.path.join(output_image_path, f"{prefix}_gaussian_filtered.nii.gz")
+    image_gaussian_path = os.path.join(output_path, f"{prefix}_gaussian_filtered.nii.gz")
     nib.save(nib.Nifti1Image(image, nib.load(nii_path).affine), image_gaussian_path)
     
     # load images for registration
@@ -840,26 +922,31 @@ def register_CTA(nii_path: str,
     # registration method
     registration_method = sitk.ImageRegistrationMethod()
     
-    # initialize transformation based on image moments
+    # set initial transform type (default to Euler3DTransform if None)
+    if initial_transform is None:
+        initial_transform = sitk.Euler3DTransform()
+    
+    # initialize transformation based on selected strategy
     initial_transform = sitk.CenteredTransformInitializer(
-        template_mask, mask, sitk.Euler3DTransform(),
-        sitk.CenteredTransformInitializerFilter.MOMENTS
+        template_mask, mask, initial_transform, initialization_strategy
     )
     registration_method.SetInitialTransform(initial_transform, inPlace=False)
     
     # set metric as Mutual Information
-    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=number_histogram_bins)
     registration_method.SetMetricMovingMask(mask)
     registration_method.SetMetricFixedMask(template_mask)
     registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
-    registration_method.SetMetricSamplingPercentage(0.5)
+    registration_method.SetMetricSamplingPercentage(metric_sampling_percentage)
     
     # interpolation method
     registration_method.SetInterpolator(sitk.sitkLinear)
     
     # optimizer settings
     registration_method.SetOptimizerAsGradientDescent(
-        learningRate=1.0, numberOfIterations=500, estimateLearningRate=registration_method.Once
+        learningRate=learning_rate, 
+        numberOfIterations=number_iterations, 
+        estimateLearningRate=registration_method.Once
     )
     registration_method.SetOptimizerScalesFromPhysicalShift()
     
@@ -886,11 +973,18 @@ def register_CTA_dataset(nii_folder: str,
                          mask_folder: str,
                          template_path: str,
                          template_mask_path: str,
-                         output_image_path: str,
-                         output_transformation_path: str = "",
+                         output_path: str,
                          saving_mode: str = "case",
                          cleanup: bool = False,
-                         debug: bool = False) -> None:
+                         debug: bool = False,
+                         number_histogram_bins: int = 128,
+                         learning_rate: float = 0.0001,
+                         number_iterations: int = 2000,
+                         initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
+                         sigma_first: float = 2.0,
+                         sigma_second: float = 3.0,
+                         metric_sampling_percentage: float = 0.5,
+                         initial_transform = None) -> None:
     """
     Registers all CTA images in a dataset folder to a reference template using 
     mutual information-based registration. Each CTA volume is preprocessed 
@@ -903,12 +997,17 @@ def register_CTA_dataset(nii_folder: str,
     .. note::
        - Each CTA is filtered to remove negative and extreme high-intensity 
          values before registration.
-       - The registration uses a moment-based initializer, Mattes Mutual 
-         Information metric, and Gradient Descent optimization.
+       - The registration uses a configurable initializer (MOMENTS or GEOMETRY), 
+         Mattes Mutual Information metric, and Gradient Descent optimization.
        - The masks constrain the metric to the brain region.
        - If ``saving_mode`` is "case", each case will have its own subfolder 
          containing the registered image and transformation.
+       - If ``saving_mode`` is "folder", all registered images will be saved in 
+         ``output_path/registered/`` and all transformations in 
+         ``output_path/transforms/``.
        - If ``cleanup`` is True, intermediate Gaussian-filtered images are removed.
+       - In folder mode with ``cleanup=False``, temporary directories containing
+         Gaussian-filtered images are preserved.
 
     :param nii_folder:
         Path to the folder containing the input CTA ``.nii.gz`` files.
@@ -923,26 +1022,66 @@ def register_CTA_dataset(nii_folder: str,
     :param template_mask_path:
         Path to the template mask, used as the fixed-image mask.
 
-    :param output_image_path:
-        Directory where registered CTA images will be saved. Created if missing.
-
-    :param output_transformation_path:
-        Directory where transformation files (``.tfm``) will be saved. 
-        Ignored if ``saving_mode`` is "case" (transform is saved in the case folder).
+    :param output_path:
+        Base directory for all outputs. Created if missing.
+        
+        - If ``saving_mode="case"``: creates ``output_path/<PREFIX>/`` for each case
+        - If ``saving_mode="folder"``: creates ``output_path/registered/`` and 
+          ``output_path/transforms/`` subdirectories
 
     :param saving_mode:
         Defines how outputs are organized:
 
         - ``"case"`` — one subfolder per input file with both registered image 
           and transformation (recommended for datasets).  
-        - ``"folder"`` — all registered images saved into a single folder.
+        - ``"folder"`` — all registered images saved into ``registered/`` subfolder 
+          and all transformations saved into ``transforms/`` subfolder. Temporary
+          directories are kept if ``cleanup=False``.
 
     :param cleanup:
         If ``True``, deletes intermediate Gaussian-filtered CTA files.
+        In folder mode, also deletes temporary directories.
 
     :param debug:
         If ``True``, prints detailed information about the registration process
         for each file.
+
+    :param number_histogram_bins:
+        Number of histogram bins for Mattes Mutual Information metric.
+        Default: 128. Common values: 10, 50, 64, 128.
+
+    :param learning_rate:
+        Learning rate for Gradient Descent optimizer.
+        Default: 0.0001. Common values: 0.0001-1.0.
+
+    :param number_iterations:
+        Maximum number of optimization iterations.
+        Default: 2000. Common values: 500-5000.
+
+    :param initialization_strategy:
+        Strategy for initializing the transformation. Options:
+        
+        - ``sitk.CenteredTransformInitializerFilter.MOMENTS`` (default) — 
+          align based on image moments (center of mass)
+        - ``sitk.CenteredTransformInitializerFilter.GEOMETRY`` — 
+          align based on image geometry (center and orientation)
+
+    :param sigma_first:
+        Standard deviation for the first Gaussian smoothing filter.
+        Default: 2.0.
+
+    :param sigma_second:
+        Standard deviation for the second Gaussian smoothing filter.
+        Default: 3.0.
+
+    :param metric_sampling_percentage:
+        Percentage of voxels to sample for metric evaluation (0.0-1.0).
+        Default: 0.5 (50%).
+
+    :param initial_transform:
+        Initial transformation object. If ``None``, defaults to 
+        ``sitk.Euler3DTransform()``. Can be any SimpleITK transform type
+        (e.g., ``sitk.Euler3DTransform()``, ``sitk.AffineTransform(3)``).
 
     :raises FileNotFoundError:
         If ``nii_folder`` does not exist or contains no ``.nii.gz`` files.
@@ -953,15 +1092,33 @@ def register_CTA_dataset(nii_folder: str,
     Example
     -------
     >>> from nidataset.preprocessing import register_CTA_dataset
+    >>> import SimpleITK as sitk
     >>>
+    >>> # basic usage with default parameters - saving mode "case"
     >>> register_CTA_dataset(
     ...     nii_folder="dataset/CTA_raw/",
     ...     mask_folder="dataset/CTA_masks/",
     ...     template_path="templates/CTA_template.nii.gz",
     ...     template_mask_path="templates/CTA_template_mask.nii.gz",
-    ...     output_image_path="output/CTA_registered/",
-    ...     output_transformation_path="output/CTA_transforms/",
+    ...     output_path="output/CTA_processed/",
+    ...     saving_mode="case",
+    ...     cleanup=True
+    ... )
+    >>>
+    >>> # custom parameters - saving mode "folder"
+    >>> register_CTA_dataset(
+    ...     nii_folder="dataset/CTA_raw/",
+    ...     mask_folder="dataset/CTA_masks/",
+    ...     template_path="templates/CTA_template.nii.gz",
+    ...     template_mask_path="templates/CTA_template_mask.nii.gz",
+    ...     output_path="output/CTA_processed/",
     ...     saving_mode="folder",
+    ...     number_histogram_bins=64,
+    ...     learning_rate=0.01,
+    ...     number_iterations=1000,
+    ...     initialization_strategy=sitk.CenteredTransformInitializerFilter.GEOMETRY,
+    ...     sigma_first=1.5,
+    ...     sigma_second=2.5,
     ...     cleanup=True,
     ...     debug=True
     ... )
@@ -982,9 +1139,14 @@ def register_CTA_dataset(nii_folder: str,
     if saving_mode not in ["case", "folder"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
     
-    # create output directories if they do not exist
-    os.makedirs(output_image_path, exist_ok=True)
-    os.makedirs(output_transformation_path, exist_ok=True)
+    # create output directories based on saving mode
+    os.makedirs(output_path, exist_ok=True)
+    
+    if saving_mode == "folder":
+        registered_dir = os.path.join(output_path, "registered")
+        transforms_dir = os.path.join(output_path, "transforms")
+        os.makedirs(registered_dir, exist_ok=True)
+        os.makedirs(transforms_dir, exist_ok=True)
     
     # iterate over nii.gz files with tqdm progress bar
     for nii_file in tqdm(nii_files, desc="Processing CTA files", unit="file"):
@@ -995,18 +1157,712 @@ def register_CTA_dataset(nii_folder: str,
         # extract the filename prefix
         prefix = os.path.basename(nii_file).replace(".nii.gz", "")
         
-        # determine the appropriate output folder
+        # determine the appropriate output folder based on saving mode
         if saving_mode == "case":
-            case_output_image_dir = os.path.join(output_image_path, prefix)
-            case_output_transformation_dir = case_output_image_dir
-            os.makedirs(case_output_image_dir, exist_ok=True)
+            case_output_dir = os.path.join(output_path, prefix)
+            os.makedirs(case_output_dir, exist_ok=True)
+            register_CTA(nii_path, mask_path, template_path, template_mask_path,
+                         case_output_dir, cleanup, debug,
+                         number_histogram_bins, learning_rate, number_iterations,
+                         initialization_strategy, sigma_first, sigma_second,
+                         metric_sampling_percentage, initial_transform)
+        else:  # saving_mode == "folder"
+            # for folder mode, register to a temporary location
+            temp_output_dir = os.path.join(output_path, f"_temp_{prefix}")
+            os.makedirs(temp_output_dir, exist_ok=True)
             
+            # register with cleanup=False to keep all files in temp directory
             register_CTA(nii_path, mask_path, template_path, template_mask_path,
-                         case_output_image_dir, case_output_transformation_dir, cleanup, debug)
-        else:
-            register_CTA(nii_path, mask_path, template_path, template_mask_path,
-                         output_image_path, output_transformation_path, cleanup, debug)
+                         temp_output_dir, False, debug,
+                         number_histogram_bins, learning_rate, number_iterations,
+                         initialization_strategy, sigma_first, sigma_second,
+                         metric_sampling_percentage, initial_transform)
+            
+            # move registered image to registered folder
+            src_registered = os.path.join(temp_output_dir, f"{prefix}_registered.nii.gz")
+            dst_registered = os.path.join(registered_dir, f"{prefix}_registered.nii.gz")
+            if os.path.exists(src_registered):
+                os.rename(src_registered, dst_registered)
+            
+            # move transformation to transforms folder
+            src_transform = os.path.join(temp_output_dir, f"{prefix}_transformation.tfm")
+            dst_transform = os.path.join(transforms_dir, f"{prefix}_transformation.tfm")
+            if os.path.exists(src_transform):
+                os.rename(src_transform, dst_transform)
+            
+            # if cleanup is True, remove the temporary directory
+            if cleanup and os.path.exists(temp_output_dir):
+                # remove all files in temp directory
+                for file in os.listdir(temp_output_dir):
+                    os.remove(os.path.join(temp_output_dir, file))
+                os.rmdir(temp_output_dir)
     
     if debug:
         print(f"\nRegistration completed for all files in '{nii_folder}'.")
 
+
+def register_mask(mask_path: str,
+                  transform_path: str,
+                  reference_image_path: str,
+                  output_path: str,
+                  is_binary: bool = True,
+                  debug: bool = False) -> None:
+    """
+    Apply a saved transformation to a mask using a reference registered image.
+    
+    This function applies a previously computed transformation (from registration)
+    to align a mask to the same space as a registered image. Useful for propagating
+    brain masks, segmentation masks, or ROI masks through registration workflows.
+    
+    .. note::
+       - The transformation must have been previously computed (e.g., via register_CTA)
+       - The reference image defines the target space and grid
+       - Binary masks use nearest neighbor interpolation to preserve labels
+       - Non-binary masks use linear interpolation for smooth transformation
+    
+    :param mask_path:
+        Path to the input mask ``.nii.gz`` file to be transformed.
+    
+    :param transform_path:
+        Path to the transformation file (``.tfm``) from a previous registration.
+    
+    :param reference_image_path:
+        Path to the registered image that defines the target space and grid.
+        This should be the output from the registration that created the transform.
+    
+    :param output_path:
+        Path where the transformed mask will be saved (including filename).
+    
+    :param is_binary:
+        If ``True``, uses nearest neighbor interpolation to preserve binary values.
+        If ``False``, uses linear interpolation for continuous-valued masks.
+        Default: ``True``.
+    
+    :param debug:
+        If ``True``, prints detailed information about the transformation process.
+    
+    :raises FileNotFoundError:
+        If any input file does not exist.
+    
+    :raises ValueError:
+        If the input mask is not a valid ``.nii.gz`` file.
+    
+    Example
+    -------
+    >>> from nidataset.preprocessing import register_CTA, register_mask
+    >>> import os
+    >>>
+    >>> # step 1: register the CTA image
+    >>> register_CTA(
+    ...     nii_path="scan.nii.gz",
+    ...     mask_path="scan_mask.nii.gz",
+    ...     template_path="template.nii.gz",
+    ...     template_mask_path="template_mask.nii.gz",
+    ...     output_path="registered/",
+    ...     debug=True
+    ... )
+    >>>
+    >>> # step 2: apply the same transformation to another mask
+    >>> register_mask(
+    ...     mask_path="scan_vessel_mask.nii.gz",
+    ...     transform_path="registered/scan_transformation.tfm",
+    ...     reference_image_path="registered/scan_registered.nii.gz",
+    ...     output_path="registered/scan_vessel_mask_registered.nii.gz",
+    ...     is_binary=True,
+    ...     debug=True
+    ... )
+    """
+    
+    # check if input files exist
+    for file_path in [mask_path, transform_path, reference_image_path]:
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"Error: the input file '{file_path}' does not exist.")
+    
+    # ensure the mask is a .nii.gz file
+    if not mask_path.endswith(".nii.gz"):
+        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{mask_path}' instead.")
+    
+    # create output directory if it does not exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    
+    # load the input mask
+    mask = sitk.ReadImage(mask_path, sitk.sitkFloat32)
+    
+    # load the reference image (defines target space)
+    reference_image = sitk.ReadImage(reference_image_path, sitk.sitkFloat32)
+    
+    # load the saved transformation
+    transformation = sitk.ReadTransform(transform_path)
+    
+    # choose interpolation method based on mask type
+    if is_binary:
+        interpolator = sitk.sitkNearestNeighbor
+    else:
+        interpolator = sitk.sitkLinear
+    
+    # apply the transformation
+    registered_mask = sitk.Resample(
+        mask,
+        reference_image,
+        transformation,
+        interpolator,
+        0.0,
+        mask.GetPixelID()
+    )
+    
+    # save the transformed mask
+    sitk.WriteImage(registered_mask, output_path)
+    
+    if debug:
+        print(f"\nRegistered mask saved at: '{output_path}'.")
+
+
+def register_mask_dataset(mask_folder: str,
+                         transform_folder: str,
+                         reference_folder: str,
+                         output_path: str,
+                         is_binary: bool = True,
+                         saving_mode: str = "case",
+                         debug: bool = False) -> None:
+    """
+    Apply saved transformations to all masks in a dataset folder.
+    
+    This function processes all mask files in a dataset by applying previously
+    computed transformations from image registration. Each mask is transformed
+    using its corresponding transformation file and reference registered image.
+    
+    .. note::
+       - Transformation files must have been generated previously (e.g., via 
+         register_CTA_dataset)
+       - Mask filenames must match the corresponding transformation and reference 
+         image filenames (by prefix)
+       - Binary masks use nearest neighbor interpolation to preserve labels
+       - If ``saving_mode`` is "case", transformations are searched in 
+         ``transform_folder/<PREFIX>/`` subdirectories
+       - If ``saving_mode`` is "folder", transformations are searched directly in
+         ``transform_folder/`` by prefix matching
+    
+    :param mask_folder:
+        Path to the folder containing input mask ``.nii.gz`` files.
+    
+    :param transform_folder:
+        Path to the folder containing transformation files.
+        
+        - If ``saving_mode="case"``: expects ``transform_folder/<PREFIX>/<PREFIX>_transformation.tfm``
+        - If ``saving_mode="folder"``: expects ``transform_folder/<PREFIX>_transformation.tfm``
+    
+    :param reference_folder:
+        Path to the folder containing registered reference images.
+        
+        - If ``saving_mode="case"``: expects ``reference_folder/<PREFIX>/<PREFIX>_registered.nii.gz``
+        - If ``saving_mode="folder"``: expects ``reference_folder/<PREFIX>_registered.nii.gz``
+    
+    :param output_path:
+        Base directory for all outputs. Created if missing.
+        
+        - If ``saving_mode="case"``: creates ``output_path/<PREFIX>/`` for each mask
+        - If ``saving_mode="folder"``: saves all masks in ``output_path/``
+    
+    :param is_binary:
+        If ``True``, uses nearest neighbor interpolation for binary masks.
+        If ``False``, uses linear interpolation for continuous-valued masks.
+        Default: ``True``.
+    
+    :param saving_mode:
+        Defines how outputs are organized and how files are searched:
+        
+        - ``"case"`` — searches for transforms in ``<PREFIX>/`` subdirectories, 
+          saves outputs in per-case subfolders (recommended for datasets).  
+        - ``"folder"`` — searches for transforms directly by prefix matching,
+          saves all registered masks into a single directory.
+    
+    :param debug:
+        If ``True``, prints detailed information about the registration process
+        for each mask.
+    
+    :raises FileNotFoundError:
+        If ``mask_folder`` does not exist or contains no ``.nii.gz`` files.
+    
+    :raises ValueError:
+        If ``saving_mode`` is not ``"case"`` or ``"folder"``.
+    
+    Example
+    -------
+    >>> from nidataset.preprocessing import register_CTA_dataset, register_mask_dataset
+    >>>
+    >>> # step 1: register all CTA images in case mode
+    >>> register_CTA_dataset(
+    ...     nii_folder="scans/",
+    ...     mask_folder="brain_masks/",
+    ...     template_path="template.nii.gz",
+    ...     template_mask_path="template_mask.nii.gz",
+    ...     output_path="registered/",
+    ...     saving_mode="case",
+    ...     cleanup=True
+    ... )
+    >>> # creates: registered/scan_001/scan_001_transformation.tfm
+    >>> #          registered/scan_001/scan_001_registered.nii.gz
+    >>>
+    >>> # step 2: apply transformations to vessel masks (case mode)
+    >>> register_mask_dataset(
+    ...     mask_folder="vessel_masks/",
+    ...     transform_folder="registered/",  # searches in registered/<PREFIX>/
+    ...     reference_folder="registered/",  # searches in registered/<PREFIX>/
+    ...     output_path="registered_vessel_masks/",
+    ...     is_binary=True,
+    ...     saving_mode="case",
+    ...     debug=True
+    ... )
+    >>>
+    >>> # alternative: folder mode workflow
+    >>> register_CTA_dataset(
+    ...     nii_folder="scans/",
+    ...     mask_folder="brain_masks/",
+    ...     template_path="template.nii.gz",
+    ...     template_mask_path="template_mask.nii.gz",
+    ...     output_path="registered/",
+    ...     saving_mode="folder",
+    ...     cleanup=True
+    ... )
+    >>> # creates: registered/registered/scan_001_registered.nii.gz
+    >>> #          registered/transforms/scan_001_transformation.tfm
+    >>>
+    >>> register_mask_dataset(
+    ...     mask_folder="vessel_masks/",
+    ...     transform_folder="registered/transforms/",  # searches by prefix
+    ...     reference_folder="registered/registered/",  # searches by prefix
+    ...     output_path="registered_vessel_masks/",
+    ...     is_binary=True,
+    ...     saving_mode="folder",
+    ...     debug=True
+    ... )
+    """
+    
+    # check if mask folder exists
+    if not os.path.isdir(mask_folder):
+        raise FileNotFoundError(f"Error: the mask folder '{mask_folder}' does not exist.")
+    
+    # get all .nii.gz files in the mask folder
+    mask_files = [f for f in os.listdir(mask_folder) if f.endswith(".nii.gz")]
+    
+    # check if there are mask files
+    if not mask_files:
+        raise FileNotFoundError(f"Error: no .nii.gz files found in '{mask_folder}'.")
+    
+    # validate saving_mode
+    if saving_mode not in ["case", "folder"]:
+        raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
+    
+    # create output directory
+    os.makedirs(output_path, exist_ok=True)
+    
+    # iterate over mask files with progress bar
+    for mask_file in tqdm(mask_files, desc="Processing masks", unit="mask"):
+        # extract the filename prefix
+        prefix = os.path.basename(mask_file).replace(".nii.gz", "")
+        
+        # construct mask path
+        mask_path = os.path.join(mask_folder, mask_file)
+        
+        # find transformation and reference files based on saving mode
+        if saving_mode == "case":
+            # search in case subdirectories: transform_folder/<PREFIX>/
+            transform_file = os.path.join(transform_folder, prefix, f"{prefix}_transformation.tfm")
+            reference_file = os.path.join(reference_folder, prefix, f"{prefix}_registered.nii.gz")
+            
+        else:  # saving_mode == "folder"
+            # search directly in folders by prefix matching
+            transform_file = os.path.join(transform_folder, f"{prefix}_transformation.tfm")
+            reference_file = os.path.join(reference_folder, f"{prefix}_registered.nii.gz")
+        
+        # check if files exist
+        if not os.path.exists(transform_file):
+            if debug:
+                print(f"\nWarning: Transformation file not found at '{transform_file}', skipping...")
+            continue
+        
+        if not os.path.exists(reference_file):
+            if debug:
+                print(f"\nWarning: Reference image not found at '{reference_file}', skipping...")
+            continue
+        
+        # determine output path based on saving mode
+        if saving_mode == "case":
+            case_output_dir = os.path.join(output_path, prefix)
+            os.makedirs(case_output_dir, exist_ok=True)
+            output_file = os.path.join(case_output_dir, f"{prefix}_mask_registered.nii.gz")
+        else:
+            output_file = os.path.join(output_path, f"{prefix}_mask_registered.nii.gz")
+        
+        # register the mask
+        register_mask(
+            mask_path=mask_path,
+            transform_path=transform_file,
+            reference_image_path=reference_file,
+            output_path=output_file,
+            is_binary=is_binary,
+            debug=debug
+        )
+    
+    if debug:
+        print(f"\nMask registration completed for all files in '{mask_folder}'.")
+
+
+def register_annotation(annotation_path: str,
+                       transform_path: str,
+                       reference_image_path: str,
+                       output_path: str,
+                       recalculate_bbox: bool = True,
+                       debug: bool = False) -> None:
+    """
+    Apply a saved transformation to an annotation and optionally recalculate 
+    bounding box around the transformed region.
+    
+    This function transforms an annotation (typically a bounding box mask) using
+    a previously computed registration transformation. It can either preserve the
+    deformed annotation or create a new tight bounding box around the transformed
+    region, which is useful for maintaining axis-aligned boxes after rotation.
+    
+    .. note::
+       - The transformation must have been previously computed (e.g., via register_CTA)
+       - Use ``recalculate_bbox=True`` for maintaining axis-aligned bounding boxes
+       - Use ``recalculate_bbox=False`` to preserve the exact deformed shape
+       - If the transformed annotation is empty, saves an empty mask
+    
+    :param annotation_path:
+        Path to the input annotation ``.nii.gz`` file (typically a bounding box).
+    
+    :param transform_path:
+        Path to the transformation file (``.tfm``) from a previous registration.
+    
+    :param reference_image_path:
+        Path to the registered image that defines the target space and grid.
+    
+    :param output_path:
+        Path where the transformed annotation will be saved (including filename).
+    
+    :param recalculate_bbox:
+        If ``True``, creates a new axis-aligned bounding box around the transformed
+        region. If ``False``, preserves the exact deformed annotation shape.
+        Default: ``True``.
+    
+    :param debug:
+        If ``True``, prints detailed information about the transformation process.
+    
+    :raises FileNotFoundError:
+        If any input file does not exist.
+    
+    :raises ValueError:
+        If the input annotation is not a valid ``.nii.gz`` file.
+    
+    Example
+    -------
+    >>> from nidataset.preprocessing import register_CTA, register_annotation
+    >>>
+    >>> # step 1: register the CTA image
+    >>> register_CTA(
+    ...     nii_path="scan.nii.gz",
+    ...     mask_path="scan_mask.nii.gz",
+    ...     template_path="template.nii.gz",
+    ...     template_mask_path="template_mask.nii.gz",
+    ...     output_path="registered/",
+    ...     debug=True
+    ... )
+    >>>
+    >>> # step 2: transform annotation with bbox recalculation
+    >>> register_annotation(
+    ...     annotation_path="scan_lesion_bbox.nii.gz",
+    ...     transform_path="registered/scan_transformation.tfm",
+    ...     reference_image_path="registered/scan_registered.nii.gz",
+    ...     output_path="registered/scan_lesion_bbox_registered.nii.gz",
+    ...     recalculate_bbox=True,
+    ...     debug=True
+    ... )
+    >>>
+    >>> # alternative: preserve exact deformed shape
+    >>> register_annotation(
+    ...     annotation_path="scan_lesion_precise.nii.gz",
+    ...     transform_path="registered/scan_transformation.tfm",
+    ...     reference_image_path="registered/scan_registered.nii.gz",
+    ...     output_path="registered/scan_lesion_precise_registered.nii.gz",
+    ...     recalculate_bbox=False,
+    ...     debug=True
+    ... )
+    """
+    
+    # check if input files exist
+    for file_path in [annotation_path, transform_path, reference_image_path]:
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"Error: the input file '{file_path}' does not exist.")
+    
+    # ensure the annotation is a .nii.gz file
+    if not annotation_path.endswith(".nii.gz"):
+        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{annotation_path}' instead.")
+    
+    # create output directory if it does not exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    
+    # load the annotation
+    annotation = sitk.ReadImage(annotation_path, sitk.sitkFloat32)
+    
+    # load the reference image (defines target space)
+    reference_image = sitk.ReadImage(reference_image_path, sitk.sitkFloat32)
+    
+    # load the saved transformation
+    transformation = sitk.ReadTransform(transform_path)
+    
+    # apply the transformation to the annotation
+    transformed_annotation = sitk.Resample(
+        annotation,
+        reference_image,
+        transformation,
+        sitk.sitkNearestNeighbor,
+        0.0,
+        annotation.GetPixelID()
+    )
+    
+    if recalculate_bbox:
+        # convert to numpy array for bbox calculation
+        transformed_array = sitk.GetArrayFromImage(transformed_annotation)
+        
+        # find nonzero voxels
+        nonzero_coords = np.argwhere(transformed_array > 0)
+        
+        # if annotation is empty after transformation, save empty mask
+        if nonzero_coords.size == 0:
+            sitk.WriteImage(transformed_annotation, output_path)
+            if debug:
+                print(f"\nWarning: Transformed annotation is empty.")
+                print(f"Registered annotation saved at: '{output_path}'.")
+            return
+        
+        # find min and max indices for each axis
+        z_min, y_min, x_min = nonzero_coords.min(axis=0)
+        z_max, y_max, x_max = nonzero_coords.max(axis=0)
+        
+        # create new mask with tight bounding box
+        new_annotation_array = np.zeros_like(transformed_array, dtype=np.uint8)
+        new_annotation_array[z_min:z_max + 1, y_min:y_max + 1, x_min:x_max + 1] = 1
+        
+        # convert back to SimpleITK
+        final_annotation = sitk.GetImageFromArray(new_annotation_array)
+        final_annotation.CopyInformation(reference_image)
+        
+        # save the new bounding box
+        sitk.WriteImage(final_annotation, output_path)
+        
+        if debug:
+            print(f"\nBounding box recalculated:")
+            print(f"  Original bbox size: {nonzero_coords.shape[0]} voxels")
+            print(f"  New bbox: [{x_min}:{x_max}, {y_min}:{y_max}, {z_min}:{z_max}]")
+            print(f"Registered annotation saved at: '{output_path}'.")
+    else:
+        # save the deformed annotation without recalculation
+        sitk.WriteImage(transformed_annotation, output_path)
+        
+        if debug:
+            print(f"\nRegistered annotation saved at: '{output_path}'.")
+
+
+def register_annotation_dataset(annotation_folder: str,
+                                transform_folder: str,
+                                reference_folder: str,
+                                output_path: str,
+                                recalculate_bbox: bool = True,
+                                saving_mode: str = "case",
+                                debug: bool = False) -> None:
+    """
+    Apply saved transformations to all annotations in a dataset folder.
+    
+    This function processes all annotation files (typically bounding boxes) in a
+    dataset by applying previously computed transformations from image registration.
+    Each annotation is transformed using its corresponding transformation file and
+    reference registered image, with optional bounding box recalculation.
+    
+    .. note::
+       - Transformation files must have been generated previously (e.g., via 
+         register_CTA_dataset)
+       - Annotation filenames must match the corresponding transformation and 
+         reference image filenames (by prefix)
+       - Use ``recalculate_bbox=True`` for maintaining axis-aligned bounding boxes
+       - If ``saving_mode`` is "case", transformations are searched in 
+         ``transform_folder/<PREFIX>/`` subdirectories
+       - If ``saving_mode`` is "folder", transformations are searched directly in
+         ``transform_folder/`` by prefix matching
+    
+    :param annotation_folder:
+        Path to the folder containing input annotation ``.nii.gz`` files.
+    
+    :param transform_folder:
+        Path to the folder containing transformation files.
+        
+        - If ``saving_mode="case"``: expects ``transform_folder/<PREFIX>/<PREFIX>_transformation.tfm``
+        - If ``saving_mode="folder"``: expects ``transform_folder/<PREFIX>_transformation.tfm``
+    
+    :param reference_folder:
+        Path to the folder containing registered reference images.
+        
+        - If ``saving_mode="case"``: expects ``reference_folder/<PREFIX>/<PREFIX>_registered.nii.gz``
+        - If ``saving_mode="folder"``: expects ``reference_folder/<PREFIX>_registered.nii.gz``
+    
+    :param output_path:
+        Base directory for all outputs. Created if missing.
+        
+        - If ``saving_mode="case"``: creates ``output_path/<PREFIX>/`` for each annotation
+        - If ``saving_mode="folder"``: saves all annotations in ``output_path/``
+    
+    :param recalculate_bbox:
+        If ``True``, creates new axis-aligned bounding boxes around transformed regions.
+        If ``False``, preserves exact deformed annotation shapes.
+        Default: ``True``.
+    
+    :param saving_mode:
+        Defines how outputs are organized and how files are searched:
+        
+        - ``"case"`` — searches for transforms in ``<PREFIX>/`` subdirectories, 
+          saves outputs in per-case subfolders (recommended for datasets).  
+        - ``"folder"`` — searches for transforms directly by prefix matching,
+          saves all registered annotations into a single directory.
+    
+    :param debug:
+        If ``True``, prints detailed information about the registration process
+        for each annotation.
+    
+    :raises FileNotFoundError:
+        If ``annotation_folder`` does not exist or contains no ``.nii.gz`` files.
+    
+    :raises ValueError:
+        If ``saving_mode`` is not ``"case"`` or ``"folder"``.
+    
+    Example
+    -------
+    >>> from nidataset.preprocessing import register_CTA_dataset, register_annotation_dataset
+    >>>
+    >>> # step 1: register all CTA images in case mode
+    >>> register_CTA_dataset(
+    ...     nii_folder="scans/",
+    ...     mask_folder="brain_masks/",
+    ...     template_path="template.nii.gz",
+    ...     template_mask_path="template_mask.nii.gz",
+    ...     output_path="registered/",
+    ...     saving_mode="case",
+    ...     cleanup=True
+    ... )
+    >>> # creates: registered/scan_001/scan_001_transformation.tfm
+    >>> #          registered/scan_001/scan_001_registered.nii.gz
+    >>>
+    >>> # step 2: apply transformations to lesion annotations (case mode)
+    >>> register_annotation_dataset(
+    ...     annotation_folder="lesion_bboxes/",
+    ...     transform_folder="registered/",  # searches in registered/<PREFIX>/
+    ...     reference_folder="registered/",  # searches in registered/<PREFIX>/
+    ...     output_path="registered_lesions/",
+    ...     recalculate_bbox=True,
+    ...     saving_mode="case",
+    ...     debug=True
+    ... )
+    >>>
+    >>> # alternative: folder mode workflow
+    >>> register_CTA_dataset(
+    ...     nii_folder="scans/",
+    ...     mask_folder="brain_masks/",
+    ...     template_path="template.nii.gz",
+    ...     template_mask_path="template_mask.nii.gz",
+    ...     output_path="registered/",
+    ...     saving_mode="folder",
+    ...     cleanup=True
+    ... )
+    >>> # creates: registered/registered/scan_001_registered.nii.gz
+    >>> #          registered/transforms/scan_001_transformation.tfm
+    >>>
+    >>> register_annotation_dataset(
+    ...     annotation_folder="lesion_bboxes/",
+    ...     transform_folder="registered/transforms/",  # searches by prefix
+    ...     reference_folder="registered/registered/",  # searches by prefix
+    ...     output_path="registered_lesions/",
+    ...     recalculate_bbox=True,
+    ...     saving_mode="folder",
+    ...     debug=True
+    ... )
+    """
+    
+    # check if annotation folder exists
+    if not os.path.isdir(annotation_folder):
+        raise FileNotFoundError(f"Error: the annotation folder '{annotation_folder}' does not exist.")
+    
+    # get all .nii.gz files in the annotation folder
+    annotation_files = [f for f in os.listdir(annotation_folder) if f.endswith(".nii.gz")]
+    
+    # check if there are annotation files
+    if not annotation_files:
+        raise FileNotFoundError(f"Error: no .nii.gz files found in '{annotation_folder}'.")
+    
+    # validate saving_mode
+    if saving_mode not in ["case", "folder"]:
+        raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
+    
+    # create output directory
+    os.makedirs(output_path, exist_ok=True)
+    
+    # iterate over annotation files with progress bar
+    for annotation_file in tqdm(annotation_files, desc="Processing annotations", unit="annotation"):
+        # extract the filename prefix
+        prefix = os.path.basename(annotation_file).replace(".nii.gz", "")
+        
+        # remove common annotation suffixes to match with transforms/references
+        for suffix in ["_bbox", "_annotation", "_lesion", "_clot", ".bbox", ".annotation", ".lesion", ".clot"]:
+            if prefix.endswith(suffix):
+                prefix = prefix[:-len(suffix)]
+                break
+        
+        # construct annotation path
+        annotation_path = os.path.join(annotation_folder, annotation_file)
+        
+        # find transformation and reference files based on saving mode
+        if saving_mode == "case":
+            # search in case subdirectories: transform_folder/<PREFIX>/
+            transform_file = os.path.join(transform_folder, prefix, f"{prefix}_transformation.tfm")
+            reference_file = os.path.join(reference_folder, prefix, f"{prefix}_registered.nii.gz")
+            
+        else:  # saving_mode == "folder"
+            # search directly in folders by prefix matching
+            transform_file = os.path.join(transform_folder, f"{prefix}_transformation.tfm")
+            reference_file = os.path.join(reference_folder, f"{prefix}_registered.nii.gz")
+        
+        # check if files exist
+        if not os.path.exists(transform_file):
+            if debug:
+                print(f"\nWarning: Transformation file not found at '{transform_file}', skipping...")
+            continue
+        
+        if not os.path.exists(reference_file):
+            if debug:
+                print(f"\nWarning: Reference image not found at '{reference_file}', skipping...")
+            continue
+        
+        # determine output path based on saving mode
+        if saving_mode == "case":
+            case_output_dir = os.path.join(output_path, prefix)
+            os.makedirs(case_output_dir, exist_ok=True)
+            output_file = os.path.join(case_output_dir, f"{prefix}_bbox_registered.nii.gz")
+        else:
+            output_file = os.path.join(output_path, f"{prefix}_bbox_registered.nii.gz")
+        
+        # register the annotation
+        register_annotation(
+            annotation_path=annotation_path,
+            transform_path=transform_file,
+            reference_image_path=reference_file,
+            output_path=output_file,
+            recalculate_bbox=recalculate_bbox,
+            debug=debug
+        )
+    
+    if debug:
+        print(f"\nAnnotation registration completed for all files in '{annotation_folder}'.")
+
+        

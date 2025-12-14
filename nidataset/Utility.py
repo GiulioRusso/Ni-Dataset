@@ -3,7 +3,6 @@ import csv
 import nibabel as nib
 import numpy as np
 from tqdm import tqdm
-from scipy.ndimage import label
 import scipy.ndimage as ndi
 
 

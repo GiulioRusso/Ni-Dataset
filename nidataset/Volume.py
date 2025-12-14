@@ -490,7 +490,7 @@ def generate_brain_mask(nii_path: str,
         raise ValueError(f"Error: expected a 3D NIfTI file. Got shape '{nii_data.shape}' instead.")
 
     # validate threshold dimensions
-    if len(threshold) != 2:
+    if threshold is not None and len(threshold) != 2:
         raise ValueError(f"Error: expected two threshold values, but got shape {len(threshold)}")
 
     # automatically determine threshold using Otsu if none provided

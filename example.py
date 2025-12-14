@@ -5,7 +5,7 @@ def main():
     print("| -------------------------------- |")
     print("| NIfTI Dataset Management Example |")
     print("| -------------------------------- |\n")
-
+    
     # ------ #
     # SLICES #
     # ------ #
