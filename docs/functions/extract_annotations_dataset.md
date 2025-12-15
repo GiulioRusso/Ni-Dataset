@@ -23,15 +23,22 @@ extract_annotations_dataset(
 
 ## Overview
 
-This function processes all annotation masks in a dataset folder and extracts annotation coordinates as CSV files. It provides flexible control over:
+This function processes all annotation masks in a dataset folder by applying the `extract_annotations` function to each file. It extracts annotation coordinates as CSV files with flexible control over organization and output format.
+
+**Key features**:
+- Batch processes entire datasets using `extract_annotations` internally
+- Flexible organization: per-case folders or shared view folders
+- Optional statistics tracking for dataset overview
+- Works with `extract_slices_dataset` for aligned image-annotation pairs
+- Progress tracking with tqdm
+
+The function provides flexible control over:
 
 - **Anatomical view**: Extract from axial, coronal, or sagittal slices
 - **Organization**: Group by case or by view
 - **Granularity**: Per-slice or per-volume extraction
-- **Data format**: Bounding boxes or center points
+- **Data format**: Bounding boxes, center points, or radius format
 - **Coordinate adjustment**: Optional padding compensation for alignment with extracted images
-
-The function is designed to work in tandem with `extract_slices_dataset` to create aligned image-annotation pairs for machine learning tasks.
 
 ## Parameters
 
@@ -42,7 +49,7 @@ The function is designed to work in tandem with `extract_slices_dataset` to crea
 | `view`            | `str`                       | `"axial"`  | Anatomical view for extraction: `"axial"`, `"coronal"`, or `"sagittal"`.                           |
 | `saving_mode`     | `str`                       | `"case"`   | Organization mode: `"case"` (folder per file) or `"view"` (shared folder).                         |
 | `extraction_mode` | `str`                       | `"slice"`  | Granularity: `"slice"` (CSV per slice) or `"volume"` (single CSV per case).                        |
-| `data_mode`       | `str`                       | `"center"` | Output format: `"center"` (point coordinates) or `"box"` (bounding box coordinates).               |
+| `data_mode`       | `str`                       | `"center"` | Output format: `"center"` (point coordinates), `"box"` (bounding boxes), or `"radius"` (center + radius). |
 | `target_size`     | `Optional[Tuple[int, int]]` | `None`     | Target dimensions (height, width) for coordinate adjustment to account for padding.                |
 | `save_stats`      | `bool`                      | `False`    | If `True`, saves annotation statistics as `<view>_annotations_stats.csv`.                          |
 
@@ -55,64 +62,87 @@ The function is designed to work in tandem with `extract_slices_dataset` to crea
 ### Saving Modes
 
 #### Case Mode (`saving_mode="case"`)
-Creates a separate folder for each annotation file:
+Creates a separate folder for each annotation file (recommended for datasets):
 ```
 output_path/
 ├── case_001/
 │   └── axial/
-│       ├── case_001_axial_0.csv
-│       ├── case_001_axial_1.csv
+│       ├── case_001_axial_000.csv
+│       ├── case_001_axial_001.csv
 │       └── ...
 ├── case_002/
 │   └── axial/
 │       └── ...
 ```
 
+**Note**: Each case folder is passed to `extract_annotations` with its annotations organized in a view subfolder.
+
 #### View Mode (`saving_mode="view"`)
 Groups all annotations in a single view folder:
 ```
 output_path/
 └── axial/
-    ├── case_001_axial_0.csv
-    ├── case_001_axial_1.csv
-    ├── case_002_axial_0.csv
+    ├── case_001_axial_000.csv
+    ├── case_001_axial_001.csv
+    ├── case_002_axial_000.csv
     └── ...
 ```
 
+**Note**: All files are extracted to a shared view folder using `extract_annotations`.
+
 ### Extraction Modes
+
+The `extraction_mode` parameter is passed directly to `extract_annotations` as the `saving_mode` parameter:
 
 #### Slice Mode (`extraction_mode="slice"`)
 Creates one CSV per slice:
 - Filename pattern: `<PREFIX>_<VIEW>_<SLICE_NUMBER>.csv`
-- Example: `patient_042_axial_15.csv`
+- Example: `patient_042_axial_015.csv`
+- Maps to `extract_annotations(..., saving_mode="slice")`
 
 #### Volume Mode (`extraction_mode="volume"`)
 Creates one CSV for the entire volume:
 - Filename pattern: `<PREFIX>.csv`
 - Contains annotations from all slices with slice index information
+- Maps to `extract_annotations(..., saving_mode="volume")`
 
 ## Data Formats
 
-### Center Mode (`data_mode="center"`)
-CSV contains the center coordinates of each annotation:
+The `data_mode` parameter is passed directly to `extract_annotations`. See the [extract_annotations documentation](extract_annotations.md) for complete details on each format.
 
-| Column | Description                           |
-|--------|---------------------------------------|
-| `X`    | X coordinate of annotation center     |
-| `Y`    | Y coordinate of annotation center     |
-| `Z`    | Z coordinate (slice index)            |
+### Center Mode (`data_mode="center"`)
+CSV contains the center coordinates of each annotation's bounding box.
+
+**Volume mode columns**:
+- `CENTER_X`: X coordinate of bounding box center
+- `CENTER_Y`: Y coordinate of bounding box center
+- `CENTER_Z`: Z coordinate (slice index)
+
+**Slice mode columns**:
+- `CENTER_X`: X coordinate of bounding box center
+- `CENTER_Y`: Y coordinate of bounding box center
 
 ### Box Mode (`data_mode="box"`)
-CSV contains full bounding box coordinates:
+CSV contains full bounding box coordinates.
 
-| Column  | Description                                  |
-|---------|----------------------------------------------|
-| `X_MIN` | Minimum X coordinate                         |
-| `Y_MIN` | Minimum Y coordinate                         |
-| `Z_MIN` | Minimum Z coordinate (slice index)           |
-| `X_MAX` | Maximum X coordinate                         |
-| `Y_MAX` | Maximum Y coordinate                         |
-| `Z_MAX` | Maximum Z coordinate (slice index)           |
+**Volume mode columns**:
+- `X_MIN`, `Y_MIN`, `Z_MIN`: Minimum coordinates
+- `X_MAX`, `Y_MAX`, `Z_MAX`: Maximum coordinates
+
+**Slice mode columns**:
+- `X_MIN`, `Y_MIN`: Minimum coordinates
+- `X_MAX`, `Y_MAX`: Maximum coordinates
+
+### Radius Mode (`data_mode="radius"`)
+CSV contains center coordinates and radii from center to bounding box edges.
+
+**Volume mode columns**:
+- `CENTER_X`, `CENTER_Y`, `CENTER_Z`: Center coordinates
+- `RADIUS_X`, `RADIUS_Y`, `RADIUS_Z`: Radii in each direction
+
+**Slice mode columns**:
+- `CENTER_X`, `CENTER_Y`: Center coordinates
+- `RADIUS_X`, `RADIUS_Y`: Radii in each direction
 
 ## Anatomical Views
 
@@ -126,7 +156,7 @@ The `view` parameter determines which axis to extract along:
 
 ## Target Size and Coordinate Adjustment
 
-When `target_size` is specified, coordinates are adjusted to account for padding applied during image extraction. This ensures alignment between images and annotations.
+When `target_size` is specified, coordinates are adjusted to account for padding applied during image extraction. This parameter is passed directly to `extract_annotations` for each file.
 
 **Important**: Use the same `target_size` value for both `extract_slices_dataset` and `extract_annotations_dataset`.
 
@@ -139,9 +169,11 @@ extract_slices_dataset(..., target_size=(512, 512))
 extract_annotations_dataset(..., target_size=(512, 512))
 ```
 
+See [extract_annotations documentation](extract_annotations.md) for details on coordinate adjustment behavior.
+
 ## Statistics File
 
-When `save_stats=True`, a CSV file is created with annotation counts:
+When `save_stats=True`, a CSV file is created with annotation counts per file:
 
 | Column              | Description                        |
 |---------------------|------------------------------------|
@@ -161,15 +193,16 @@ The file is named `<view>_annotations_stats.csv` and saved in `output_path`.
 ## Usage Notes
 
 - **Input Format**: Only `.nii.gz` files are processed
-- **Progress Display**: Shows progress bar with current file being processed
-- **Error Handling**: Files that fail are skipped with error messages
+- **Progress Display**: Shows progress bar with tqdm for batch processing
+- **Error Handling**: Files that fail extraction are skipped with error messages
 - **Coordinate System**: Coordinates are in voxel space (0-indexed)
-- **Multiple Annotations**: Each connected component gets its own row in the CSV
+- **Underlying Function**: Each file is processed using `extract_annotations`
+- **Statistics**: Tracked across all files and saved when `save_stats=True`
 
 ## Examples
 
 ### Basic Usage - Slice-Based Extraction
-Extract center coordinates for each axial slice:
+Extract center coordinates for each axial slice across all files:
 
 ```python
 from nidataset.slices import extract_annotations_dataset
@@ -182,7 +215,8 @@ extract_annotations_dataset(
     extraction_mode="slice",
     data_mode="center"
 )
-# Creates: extracted/annotations/case_001/axial/case_001_axial_0.csv, ...
+# For each file, calls extract_annotations with saving_mode="slice"
+# Creates: extracted/annotations/case_001/axial/case_001_axial_000.csv, ...
 ```
 
 ### With Statistics Tracking
@@ -231,6 +265,7 @@ extract_annotations_dataset(
     data_mode="center",
     save_stats=True
 )
+# For each file, calls extract_annotations with saving_mode="volume"
 # Creates: volume_labels/case_001/sagittal/case_001.csv
 ```
 
@@ -240,7 +275,7 @@ Extract aligned images and annotations for training:
 ```python
 from nidataset.slices import extract_slices_dataset, extract_annotations_dataset
 
-# 1. Extract images with padding
+# Step 1: Extract images with padding
 extract_slices_dataset(
     nii_folder="data/scans/",
     output_path="training_data/images/",
@@ -251,7 +286,7 @@ extract_slices_dataset(
     save_stats=True
 )
 
-# 2. Extract annotations with matching adjustment
+# Step 2: Extract annotations with matching adjustment
 extract_annotations_dataset(
     nii_folder="data/masks/",
     output_path="training_data/labels/",
@@ -348,7 +383,7 @@ extract_annotations_dataset(
 )
 
 # Check a sample annotation file
-sample_csv = "qa/annotations/case_001/axial/case_001_axial_10.csv"
+sample_csv = "qa/annotations/case_001/axial/case_001_axial_010.csv"
 df = pd.read_csv(sample_csv)
 
 print(f"Sample slice has {len(df)} annotations")
@@ -361,6 +396,22 @@ print(df[['width', 'height']].describe())
 small_boxes = df[(df['width'] < 5) | (df['height'] < 5)]
 if not small_boxes.empty:
     print(f"\nWarning: {len(small_boxes)} very small annotations detected")
+```
+
+### Radius Mode for Analysis
+Extract center and radius information for size analysis:
+
+```python
+extract_annotations_dataset(
+    nii_folder="nodule_masks/",
+    output_path="nodule_analysis/",
+    view="axial",
+    saving_mode="case",
+    extraction_mode="volume",
+    data_mode="radius",
+    save_stats=True
+)
+# Each case gets a single CSV with center coordinates and radii
 ```
 
 ## Typical Workflow
