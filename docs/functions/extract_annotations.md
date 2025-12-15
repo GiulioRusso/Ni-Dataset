@@ -69,6 +69,7 @@ Single CSV containing all annotations:
 Saves the center coordinates of each annotation's bounding box.
 
 **Volume mode columns**:
+
 | Column     | Description                           |
 |------------|---------------------------------------|
 | `CENTER_X` | X coordinate of bounding box center   |
@@ -76,6 +77,7 @@ Saves the center coordinates of each annotation's bounding box.
 | `CENTER_Z` | Z coordinate (slice index)            |
 
 **Slice mode columns**:
+
 | Column     | Description                           |
 |------------|---------------------------------------|
 | `CENTER_X` | X coordinate of bounding box center   |
@@ -85,6 +87,7 @@ Saves the center coordinates of each annotation's bounding box.
 Saves complete bounding box coordinates.
 
 **Volume mode columns**:
+
 | Column  | Description                  |
 |---------|------------------------------|
 | `X_MIN` | Minimum X coordinate         |
@@ -95,6 +98,7 @@ Saves complete bounding box coordinates.
 | `Z_MAX` | Maximum Z coordinate (slice) |
 
 **Slice mode columns**:
+
 | Column  | Description          |
 |---------|----------------------|
 | `X_MIN` | Minimum X coordinate |
@@ -106,6 +110,7 @@ Saves complete bounding box coordinates.
 Saves center coordinates and radii from center to bounding box edges.
 
 **Volume mode columns**:
+
 | Column     | Description                     |
 |------------|---------------------------------|
 | `CENTER_X` | X coordinate of center          |
@@ -116,6 +121,7 @@ Saves center coordinates and radii from center to bounding box edges.
 | `RADIUS_Z` | Radius in Z direction           |
 
 **Slice mode columns**:
+
 | Column     | Description           |
 |------------|-----------------------|
 | `CENTER_X` | X coordinate of center|
