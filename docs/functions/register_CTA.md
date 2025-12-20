@@ -34,7 +34,7 @@ This function aligns a medical imaging volume to a reference template through an
 
 <div style="display: flex; gap: 10px; text-align: center;">
   <figure style="flex: 1;">
-    <img src="../images/register-CTA-1.png", width=100%>
+    <img src="../images/register-CTA-1.png" width=100%>
   </figure>
   <figure style="flex: 1;">
     <img src="../images/register-CTA-2.png" width="100%">
@@ -48,7 +48,7 @@ This function aligns a medical imaging volume to a reference template through an
 
 <img src="../images/MNI-space.jpeg" alt="https://dartbrains.org/content/Preprocessing.html" width=500px>
 
-<br>
+
 
 **Registration pipeline**:
 1. **Preprocessing**: Sequential Gaussian filtering with intensity clipping

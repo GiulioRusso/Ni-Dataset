@@ -25,7 +25,7 @@ This function implements a multi-stage skull-stripping pipeline specifically des
 
 <div style="display: flex; gap: 10px; text-align: center;">
   <figure style="flex: 1;">
-    <img src="../images/skull-CTA-1.png", width=100%>
+    <img src="../images/skull-CTA-1.png" width=100%>
   </figure>
   <figure style="flex: 1;">
     <img src="../images/skull-CTA-2.png" width="100%">
