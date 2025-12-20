@@ -22,6 +22,12 @@ draw_2D_annotations(
 
 This function visualizes 2D annotations by drawing them directly on images. It reads annotation coordinates from a CSV file and overlays them as yellow markers (circles, ellipses, or rectangles) on the input image. The function supports three annotation formats commonly used in medical imaging and object detection tasks.
 
+<div style="display: flex; gap: 10px; text-align: center;">
+  <figure style="flex: 1;">
+    <img src="../images/draw-1.png" width=100%>
+  </figure>
+</div>
+
 **Supported annotation types**:
 1. **Center points**: Small circles marking point locations
 2. **Bounding boxes**: Rectangles defining object boundaries

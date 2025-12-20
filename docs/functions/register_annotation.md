@@ -25,7 +25,7 @@ This function transforms an annotation (typically a bounding box mask) using a p
 
 <div style="display: flex; gap: 10px; text-align: center;">
   <figure style="flex: 1;">
-    <img src="../images/register-annotation-1.png", width=100%>
+    <img src="../images/register-annotation-1.png" width=100%>
   </figure>
   <figure style="flex: 1;">
     <img src="../images/register-annotation-2.png" width="100%">
