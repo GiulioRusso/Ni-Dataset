@@ -12,7 +12,7 @@ Apply a saved transformation to an annotation and optionally recalculate boundin
 register_annotation(
     annotation_path: str,
     transform_path: str,
-    reference_image_path: str,
+    registered_path: str,
     output_path: str,
     recalculate_bbox: bool = True,
     debug: bool = False
@@ -22,6 +22,19 @@ register_annotation(
 ## Overview
 
 This function transforms an annotation (typically a bounding box mask) using a previously computed registration transformation. It can either preserve the deformed annotation or create a new tight bounding box around the transformed region, which is particularly useful for maintaining axis-aligned boxes after rotation or spatial transformations.
+
+<div style="display: flex; gap: 10px; text-align: center;">
+  <figure style="flex: 1;">
+    <img src="../images/register-annotation-1.png", width=100%>
+  </figure>
+  <figure style="flex: 1;">
+    <img src="../images/register-annotation-2.png" width="100%">
+  </figure>
+  <figure style="flex: 1;">
+    <img src="../images/register-annotation-3.png" width="100%">
+  </figure>
+</div>
+
 
 **Transformation pipeline**:
 1. **Load**: Reads annotation, transformation, and reference image
@@ -40,9 +53,9 @@ This is essential for:
 
 | Name                    | Type   | Default    | Description                                                                                          |
 |-------------------------|--------|------------|------------------------------------------------------------------------------------------------------|
-| `annotation_path`       | `str`  | *required* | Path to the input annotation `.nii.gz` file (typically a bounding box).                             |
+| `annotation_path`       | `str`  | *required* | Path to the input annotation file ending with `_bbox.nii.gz`.                                       |
 | `transform_path`        | `str`  | *required* | Path to the transformation file (`.tfm`) from a previous registration.                              |
-| `reference_image_path`  | `str`  | *required* | Path to the registered image that defines the target space and grid.                                |
+| `registered_path`  | `str`  | *required* | Path to the registered image that defines the target space and grid.                                |
 | `output_path`           | `str`  | *required* | Path where the transformed annotation will be saved (including filename).                           |
 | `recalculate_bbox`      | `bool` | `True`     | If `True`, creates new axis-aligned bounding box. If `False`, preserves deformed shape.            |
 | `debug`                 | `bool` | `False`    | If `True`, prints detailed information about the transformation and bounding box dimensions.        |
@@ -57,7 +70,7 @@ The function generates a single file:
 
 | File                                | Description                                   | When recalculate_bbox=True           | When recalculate_bbox=False      |
 |-------------------------------------|-----------------------------------------------|--------------------------------------|----------------------------------|
-| `<FILENAME>_registered.nii.gz`     | Transformed annotation                        | New axis-aligned bounding box        | Deformed annotation shape        |
+| User-specified output path          | Transformed annotation                        | New axis-aligned bounding box        | Deformed annotation shape        |
 
 ## Bounding Box Recalculation
 
@@ -113,16 +126,36 @@ Original Box:        After Rotation:       After Recalculation:
 - Annotation is not a simple bounding box
 - Deformation information needs preservation
 
+## Important Notes
+
+### Annotation Naming Convention
+- **All annotation files must end with `_bbox.nii.gz`**
+- This is enforced by the function's validation
+- Examples of valid names:
+  - `patient001_lesion_bbox.nii.gz`
+  - `case001_tumor_bbox.nii.gz`
+  - `vessel_roi_bbox.nii.gz`
+- Examples of invalid names:
+  - `patient001_lesion.nii.gz` (missing `_bbox`)
+  - `lesion.nii.gz` (missing `_bbox`)
+  - `bbox_lesion.nii.gz` (`_bbox` not at end before `.nii.gz`)
+
+### File Requirements
+- Input annotation must be a 3D NIfTI image (`.nii.gz`)
+- Transformation file must exist from a prior registration
+- Reference image defines the target coordinate space
+- All three input files must exist before function call
+
 ## Exceptions
 
 | Exception            | Condition                                                          |
 |----------------------|--------------------------------------------------------------------|
-| `FileNotFoundError`  | Any required input file does not exist                            |
-| `ValueError`         | Input annotation is not in `.nii.gz` format                       |
+| `FileNotFoundError`  | Any required input file (annotation, transform, or reference) does not exist |
+| `ValueError`         | Input annotation filename does not end with `_bbox.nii.gz`        |
 
 ## Usage Notes
 
-- **Input Format**: Only `.nii.gz` files are accepted
+- **Input Format**: Only `.nii.gz` files ending with `_bbox` are accepted
 - **3D Annotations Required**: Input must be 3D NIfTI image
 - **Transform Dependency**: Transformation must be from a completed registration
 - **Empty Annotations**: If transformation results in empty annotation (no non-zero voxels), saves empty mask with warning
@@ -152,7 +185,7 @@ register_CTA(
 register_annotation(
     annotation_path="scan_lesion_bbox.nii.gz",
     transform_path="registered/scan_transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="registered/scan_lesion_bbox_registered.nii.gz",
     recalculate_bbox=True,
     debug=True
@@ -172,9 +205,9 @@ from nidataset.preprocessing import register_annotation
 
 # Transform without recalculation - preserves deformation
 register_annotation(
-    annotation_path="scan_region.nii.gz",
+    annotation_path="scan_region_bbox.nii.gz",
     transform_path="registered/scan_transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="registered/scan_region_registered.nii.gz",
     recalculate_bbox=False,  # Keep deformed shape
     debug=True
@@ -208,17 +241,17 @@ annotations = [
 ]
 
 for annotation_file in annotations:
-    output_name = annotation_file.replace(".nii.gz", "_registered.nii.gz")
+    output_name = annotation_file.replace("_bbox.nii.gz", "_bbox_registered.nii.gz")
     
     register_annotation(
         annotation_path=f"annotations/{annotation_file}",
         transform_path="registered/patient001/patient001_transformation.tfm",
-        reference_image_path="registered/patient001/patient001_registered.nii.gz",
+        registered_path="registered/patient001/patient001_registered.nii.gz",
         output_path=f"registered/patient001/{output_name}",
         recalculate_bbox=True,
         debug=True
     )
-    print(f"✓ Registered: {annotation_file}")
+    print(f"Registered: {annotation_file}")
 ```
 
 ### Compare Recalculation vs Preservation
@@ -231,18 +264,18 @@ import numpy as np
 
 # Transform with recalculation
 register_annotation(
-    annotation_path="bbox.nii.gz",
+    annotation_path="lesion_bbox.nii.gz",
     transform_path="transforms/transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="comparison/bbox_recalculated.nii.gz",
     recalculate_bbox=True
 )
 
 # Transform without recalculation
 register_annotation(
-    annotation_path="bbox.nii.gz",
+    annotation_path="lesion_bbox.nii.gz",
     transform_path="transforms/transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="comparison/bbox_deformed.nii.gz",
     recalculate_bbox=False
 )
@@ -270,12 +303,12 @@ import os
 from tqdm import tqdm
 
 def batch_register_annotations(annotation_folder, transform_folder, 
-                               reference_folder, output_path, 
+                               registered_folder, output_path, 
                                recalculate_bbox=True):
     """Register all annotations in a folder."""
     
     annotation_files = [f for f in os.listdir(annotation_folder) 
-                       if f.endswith(".nii.gz")]
+                       if f.endswith("_bbox.nii.gz")]
     
     os.makedirs(output_path, exist_ok=True)
     
@@ -283,23 +316,25 @@ def batch_register_annotations(annotation_folder, transform_folder,
     failed_cases = []
     
     for annotation_file in tqdm(annotation_files, desc="Registering annotations"):
-        prefix = annotation_file.replace(".nii.gz", "")
+        # Extract prefix by removing _bbox.nii.gz
+        prefix = annotation_file.replace("_bbox.nii.gz", "")
         
         # Find corresponding transform and reference
         transform_file = os.path.join(transform_folder, f"{prefix}_transformation.tfm")
-        reference_file = os.path.join(reference_folder, f"{prefix}_registered.nii.gz")
+        reference_file = os.path.join(registered_folder, f"{prefix}_registered.nii.gz")
         
         if not os.path.exists(transform_file) or not os.path.exists(reference_file):
             failed_cases.append((prefix, "Missing files"))
             continue
         
         try:
-            output_file = os.path.join(output_path, f"{prefix}_annotation_registered.nii.gz")
+            output_file = os.path.join(output_path, 
+                                      f"{prefix}_bbox_registered.nii.gz")
             
             register_annotation(
                 annotation_path=os.path.join(annotation_folder, annotation_file),
                 transform_path=transform_file,
-                reference_image_path=reference_file,
+                registered_path=reference_file,
                 output_path=output_file,
                 recalculate_bbox=recalculate_bbox,
                 debug=False
@@ -325,7 +360,7 @@ def batch_register_annotations(annotation_folder, transform_folder,
 batch_register_annotations(
     annotation_folder="data/bboxes/",
     transform_folder="data/registered/transforms/",
-    reference_folder="data/registered/registered/",
+    registered_folder="data/registered/registered/",
     output_path="data/bboxes_registered/",
     recalculate_bbox=True
 )
@@ -343,7 +378,7 @@ import numpy as np
 register_annotation(
     annotation_path="lesion_bbox.nii.gz",
     transform_path="transforms/transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="registered/lesion_bbox_registered.nii.gz",
     recalculate_bbox=True,
     debug=True
@@ -409,7 +444,8 @@ def create_detection_dataset(scan_folder, bbox_folder, output_folder,
         # Register scan
         register_CTA(
             nii_path=os.path.join(scan_folder, scan_file),
-            mask_path=os.path.join(scan_folder.replace("scans", "masks"), scan_file),
+            mask_path=os.path.join(scan_folder.replace("scans", "masks"), 
+                                  f"{case_id}_mask.nii.gz"),
             template_path=template_path,
             template_mask_path=template_mask_path,
             output_path=f"{output_folder}/scans/{case_id}/",
@@ -426,14 +462,16 @@ def create_detection_dataset(scan_folder, bbox_folder, output_folder,
         register_annotation(
             annotation_path=bbox_file,
             transform_path=f"{output_folder}/scans/{case_id}/{case_id}_transformation.tfm",
-            reference_image_path=f"{output_folder}/scans/{case_id}/{case_id}_registered.nii.gz",
+            registered_path=f"{output_folder}/scans/{case_id}/{case_id}_registered.nii.gz",
             output_path=f"{output_folder}/annotations/{case_id}_bbox_registered.nii.gz",
             recalculate_bbox=True,
             debug=False
         )
         
         # Extract bbox coordinates
-        bbox_data = nib.load(f"{output_folder}/annotations/{case_id}_bbox_registered.nii.gz").get_fdata()
+        bbox_data = nib.load(
+            f"{output_folder}/annotations/{case_id}_bbox_registered.nii.gz"
+        ).get_fdata()
         coords = np.argwhere(bbox_data > 0)
         
         if coords.size > 0:
@@ -453,7 +491,7 @@ def create_detection_dataset(scan_folder, bbox_folder, output_folder,
                 "area": int((x_max - x_min) * (y_max - y_min) * (z_max - z_min))
             })
             
-            print(f"  ✓ Registered with bbox: [{x_min}:{x_max}, {y_min}:{y_max}, {z_min}:{z_max}]")
+            print(f"  Registered with bbox: [{x_min}:{x_max}, {y_min}:{y_max}, {z_min}:{z_max}]")
     
     # Save metadata
     with open(f"{output_folder}/dataset_metadata.json", "w") as f:
@@ -483,18 +521,18 @@ import numpy as np
 
 # Register with recalculation
 register_annotation(
-    annotation_path="bbox.nii.gz",
+    annotation_path="lesion_bbox.nii.gz",
     transform_path="transforms/transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="registered/bbox_recalc.nii.gz",
     recalculate_bbox=True
 )
 
 # Register without recalculation
 register_annotation(
-    annotation_path="bbox.nii.gz",
+    annotation_path="lesion_bbox.nii.gz",
     transform_path="transforms/transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="registered/bbox_deformed.nii.gz",
     recalculate_bbox=False
 )
@@ -549,7 +587,7 @@ def safe_register_annotation(annotation_path, transform_path,
     register_annotation(
         annotation_path=annotation_path,
         transform_path=transform_path,
-        reference_image_path=reference_path,
+        registered_path=reference_path,
         output_path=output_path,
         recalculate_bbox=recalculate_bbox,
         debug=True
@@ -559,12 +597,12 @@ def safe_register_annotation(annotation_path, transform_path,
     result = nib.load(output_path).get_fdata()
     
     if np.sum(result > 0) == 0:
-        print(f"⚠ Warning: Registered annotation is empty")
+        print(f"Warning: Registered annotation is empty")
         print(f"  This may indicate the annotation was transformed outside the")
         print(f"  reference image boundaries or registration misalignment.")
         return False
     else:
-        print(f"✓ Annotation registered successfully")
+        print(f"Annotation registered successfully")
         print(f"  Contains {np.sum(result > 0)} voxels")
         return True
 
@@ -599,7 +637,7 @@ def prepare_detection_dataset(base_dir, template_path, template_mask_path):
     base_dir/
     ├── scans/
     ├── masks/
-    └── bounding_boxes/
+    └── bounding_boxes/  (files ending with _bbox.nii.gz)
     """
     
     print("=" * 60)
@@ -632,7 +670,7 @@ def prepare_detection_dataset(base_dir, template_path, template_mask_path):
         bbox_file = f"{base_dir}/bounding_boxes/{case}_bbox.nii.gz"
         
         if not os.path.exists(bbox_file):
-            print(f"⊗ {case}: No bounding box found")
+            print(f"No bounding box found for {case}")
             continue
         
         try:
@@ -641,7 +679,7 @@ def prepare_detection_dataset(base_dir, template_path, template_mask_path):
             register_annotation(
                 annotation_path=bbox_file,
                 transform_path=f"{base_dir}/registered/{case}/{case}_transformation.tfm",
-                reference_image_path=f"{base_dir}/registered/{case}/{case}_registered.nii.gz",
+                registered_path=f"{base_dir}/registered/{case}/{case}_registered.nii.gz",
                 output_path=output_path,
                 recalculate_bbox=True,
                 debug=False
@@ -671,12 +709,12 @@ def prepare_detection_dataset(base_dir, template_path, template_mask_path):
                     'depth': int(z_max - z_min + 1)
                 })
                 
-                print(f"✓ {case}: bbox [{x_min}:{x_max}, {y_min}:{y_max}, {z_min}:{z_max}]")
+                print(f"{case}: bbox [{x_min}:{x_max}, {y_min}:{y_max}, {z_min}:{z_max}]")
             else:
-                print(f"⚠ {case}: Empty annotation after transformation")
+                print(f"{case}: Empty annotation after transformation")
         
         except Exception as e:
-            print(f"✗ {case}: Failed - {str(e)}")
+            print(f"{case}: Failed - {str(e)}")
     
     # Save bounding box catalog
     if bbox_records:
@@ -720,7 +758,7 @@ register_CTA(
 register_annotation(
     annotation_path="scan_lesion_bbox.nii.gz",
     transform_path="registered/scan_transformation.tfm",
-    reference_image_path="registered/scan_registered.nii.gz",
+    registered_path="registered/scan_registered.nii.gz",
     output_path="registered/scan_lesion_bbox_registered.nii.gz",
     recalculate_bbox=True  # For axis-aligned boxes
 )
@@ -731,50 +769,3 @@ register_annotation(
 # - Automated lesion detection
 # - Bounding box-based segmentation
 ```
-
-## When to Use recalculate_bbox
-
-| Scenario | recalculate_bbox | Reason |
-|----------|------------------|--------|
-| Object detection training | `True` | Requires axis-aligned boxes |
-| Rotated registrations | `True` | Maintains rectangular shape |
-| Annotation efficiency | `True` | Creates tight boxes |
-| Detection frameworks (YOLO, etc.) | `True` | Expects rectangular boxes |
-| Precise shape analysis | `False` | Preserves deformation |
-| Shape-critical applications | `False` | Maintains spatial relationships |
-| Arbitrary-shaped annotations | `False` | Not necessarily bounding boxes |
-| Exact transformation analysis | `False` | Studies deformation effects |
-
-## Troubleshooting
-
-### Common Issues and Solutions
-
-**Issue**: Empty annotation after transformation
-- **Solution**: Check that annotation overlaps with scan region
-- Verify registration quality
-- Ensure template covers the annotated region
-
-**Issue**: Bounding box too large after recalculation
-- **Solution**: This is expected - recalculated box encompasses all transformed voxels
-- Use `recalculate_bbox=False` if tight fit is critical
-
-**Issue**: Bounding box coordinates incorrect
-- **Solution**: Verify coordinate system matches reference image
-- Check that transformation was successful
-- Ensure annotation uses same orientation as scan
-
-**Issue**: Annotation looks deformed
-- **Solution**: This is expected with `recalculate_bbox=False`
-- Use `recalculate_bbox=True` for axis-aligned boxes
-- Check registration parameters if deformation is excessive
-
-## Performance Considerations
-
-### Processing Speed
-
-Typical processing times:
-- **Small annotations** (64³): ~0.2-0.5 seconds
-- **Medium annotations** (128³): ~0.5-1 second
-- **Large annotations** (256³): ~1-3 seconds
-
-Recalculation adds minimal overhead (~0.1-0.2 seconds).

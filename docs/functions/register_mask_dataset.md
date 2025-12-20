@@ -12,7 +12,7 @@ Apply saved transformations to all masks in a dataset folder using previously co
 register_mask_dataset(
     mask_folder: str,
     transform_folder: str,
-    reference_folder: str,
+    registered_folder: str,
     output_path: str,
     is_binary: bool = True,
     saving_mode: str = "case",
@@ -41,9 +41,9 @@ This is essential for:
 
 | Name                | Type   | Default    | Description                                                                                          |
 |---------------------|--------|------------|------------------------------------------------------------------------------------------------------|
-| `mask_folder`       | `str`  | *required* | Path to folder containing input mask `.nii.gz` files.                                               |
+| `mask_folder`       | `str`  | *required* | Path to folder containing input mask files ending with `_mask.nii.gz`.                              |
 | `transform_folder`  | `str`  | *required* | Path to folder containing transformation files (`.tfm`). Location depends on `saving_mode`.         |
-| `reference_folder`  | `str`  | *required* | Path to folder containing registered reference images. Location depends on `saving_mode`.           |
+| `registered_folder`  | `str`  | *required* | Path to folder containing registered reference images. Location depends on `saving_mode`.           |
 | `output_path`       | `str`  | *required* | Base directory for all outputs. Organization depends on `saving_mode`.                              |
 | `is_binary`         | `bool` | `True`     | If `True`, uses nearest neighbor interpolation. If `False`, uses linear interpolation.             |
 | `saving_mode`       | `str`  | `"case"`   | Organization mode: `"case"` (per-case subfolders) or `"folder"` (single directory).               |
@@ -57,10 +57,10 @@ The `saving_mode` parameter controls both **file search patterns** and **output 
 
 **File Search Pattern**:
 - Transforms: `transform_folder/<PREFIX>/<PREFIX>_transformation.tfm`
-- References: `reference_folder/<PREFIX>/<PREFIX>_registered.nii.gz`
+- References: `registered_folder/<PREFIX>/<PREFIX>_registered.nii.gz`
 
 **Output Structure**:
-- Creates: `output_path/<PREFIX>/<PREFIX>_mask_registered.nii.gz`
+- Creates: `output_path/<PREFIX>/<PREFIX>_registered_mask.nii.gz`
 
 **Use Case**: When registration was done with `register_CTA_dataset(..., saving_mode="case")`
 
@@ -73,7 +73,7 @@ transform_folder/
 └── case003/
     └── case003_transformation.tfm
 
-reference_folder/
+registered_folder/
 ├── case001/
 │   └── case001_registered.nii.gz
 ├── case002/
@@ -83,21 +83,21 @@ reference_folder/
 
 output_path/
 ├── case001/
-│   └── case001_mask_registered.nii.gz
+│   └── case001_registered_mask.nii.gz
 ├── case002/
-│   └── case002_mask_registered.nii.gz
+│   └── case002_registered_mask.nii.gz
 └── case003/
-    └── case003_mask_registered.nii.gz
+    └── case003_registered_mask.nii.gz
 ```
 
 ### Folder Mode (`saving_mode="folder"`)
 
 **File Search Pattern**:
 - Transforms: `transform_folder/<PREFIX>_transformation.tfm`
-- References: `reference_folder/<PREFIX>_registered.nii.gz`
+- References: `registered_folder/<PREFIX>_registered.nii.gz`
 
 **Output Structure**:
-- Creates: `output_path/<PREFIX>_mask_registered.nii.gz`
+- Creates: `output_path/<PREFIX>_registered_mask.nii.gz`
 
 **Use Case**: When registration was done with `register_CTA_dataset(..., saving_mode="folder")`
 
@@ -107,15 +107,15 @@ transform_folder/
 ├── case002_transformation.tfm
 └── case003_transformation.tfm
 
-reference_folder/
+registered_folder/
 ├── case001_registered.nii.gz
 ├── case002_registered.nii.gz
 └── case003_registered.nii.gz
 
 output_path/
-├── case001_mask_registered.nii.gz
-├── case002_mask_registered.nii.gz
-└── case003_mask_registered.nii.gz
+├── case001_registered_mask.nii.gz
+├── case002_registered_mask.nii.gz
+└── case003_registered_mask.nii.gz
 ```
 
 ## Returns
@@ -128,20 +128,42 @@ For each input mask file, the function generates:
 
 | Saving Mode | Output Pattern                                    | Description                     |
 |-------------|---------------------------------------------------|---------------------------------|
-| `"case"`    | `output_path/<PREFIX>/<PREFIX>_mask_registered.nii.gz` | One folder per case       |
-| `"folder"`  | `output_path/<PREFIX>_mask_registered.nii.gz`     | All masks in single folder      |
+| `"case"`    | `output_path/<PREFIX>/<PREFIX>_registered_mask.nii.gz` | One folder per case       |
+| `"folder"`  | `output_path/<PREFIX>_registered_mask.nii.gz`     | All masks in single folder      |
 
-## File Matching Logic
+## Interpolation Selection Guide
 
-The function matches files by **prefix** (filename without `.nii.gz`):
+| Mask Type | is_binary Setting | Reason |
+|-----------|-------------------|--------|
+| Binary segmentation | `True` | Preserves discrete labels (0, 1) |
+| Multi-label segmentation | `True` | Preserves label integrity (0, 1, 2, 3, ...) |
+| Vessel masks | `True` | Maintains vessel vs. background distinction |
+| Lesion masks | `True` | Preserves lesion boundaries |
+| Tissue probability maps | `False` | Allows smooth probability values |
+| Confidence maps | `False` | Maintains continuous confidence scores |
+| Gradient maps | `False` | Preserves smooth intensity transitions |
+| Distance maps | `False` | Maintains continuous distance values |
 
-**Example**: For mask file `patient_001_lesion.nii.gz`:
-- **Prefix**: `patient_001_lesion`
-- **Searches for**:
-  - Transform: `patient_001_lesion_transformation.tfm`
-  - Reference: `patient_001_lesion_registered.nii.gz`
+## Important Notes
 
-**Important**: Mask filenames must match the naming convention used during registration.
+### Mask Naming Convention
+- **All mask files must end with `_mask.nii.gz`**
+- This is enforced by the function's prefix extraction logic
+- Examples of valid names:
+  - `patient001_brain_mask.nii.gz` (prefix: `patient001_brain`)
+  - `lesion_mask.nii.gz` (prefix: `lesion`)
+  - `vessel_segmentation_mask.nii.gz` (prefix: `vessel_segmentation`)
+- Examples of invalid names:
+  - `patient001_brain.nii.gz` (missing `_mask` suffix)
+  - `lesion.nii.gz` (missing `_mask` suffix)
+  - `mask_brain.nii.gz` (`_mask` not at end before `.nii.gz`)
+
+### File Matching in Workflows
+When using `register_mask_dataset`, the function will:
+1. Look for masks ending with `_mask.nii.gz`
+2. Strip the `_mask.nii.gz` suffix to extract the prefix
+3. Match the prefix to transformations and references
+4. Example: `patient001_brain_mask.nii.gz` → prefix `patient001_brain` → matches `patient001_brain_transformation.tfm` and `patient001_brain_registered.nii.gz`
 
 ## Exceptions
 
@@ -152,9 +174,9 @@ The function matches files by **prefix** (filename without `.nii.gz`):
 
 ## Usage Notes
 
-- **Input Format**: Only `.nii.gz` files are accepted
+- **Input Format**: Only files ending with `_mask.nii.gz` are processed
 - **3D Masks Required**: All inputs must be 3D NIfTI images
-- **Prefix Matching**: Mask filenames must match corresponding transform/reference prefixes
+- **Prefix Matching**: The prefix (extracted by removing `_mask.nii.gz`) must match corresponding transform/reference prefixes
 - **Missing Files**: If transform or reference is not found, the mask is skipped with a warning (if `debug=True`)
 - **Output Directories**: Automatically created if they don't exist
 - **Progress Tracking**: Uses tqdm progress bar to show processing status
@@ -180,10 +202,11 @@ register_CTA_dataset(
 )
 
 # Step 2: Apply transformations to vessel masks
+# Masks must be named like: case001_vessel_mask.nii.gz
 register_mask_dataset(
     mask_folder="data/vessel_masks/",
     transform_folder="data/registered/",  # searches in <PREFIX>/ subdirs
-    reference_folder="data/registered/",  # searches in <PREFIX>/ subdirs
+    registered_folder="data/registered/",  # searches in <PREFIX>/ subdirs
     output_path="data/vessel_registered/",
     is_binary=True,
     saving_mode="case",
@@ -211,10 +234,11 @@ register_CTA_dataset(
 #          registered/transforms/case_001_transformation.tfm
 
 # Step 2: Apply transformations to lesion masks
+# Masks must be named like: case_001_lesion_mask.nii.gz
 register_mask_dataset(
     mask_folder="data/lesion_masks/",
     transform_folder="data/registered/transforms/",  # direct prefix search
-    reference_folder="data/registered/registered/",  # direct prefix search
+    registered_folder="data/registered/registered/",  # direct prefix search
     output_path="data/lesion_registered/",
     is_binary=True,
     saving_mode="folder",
@@ -229,6 +253,7 @@ Process different mask types sequentially:
 from nidataset.preprocessing import register_mask_dataset
 
 # After registering main scans with saving_mode="case"
+# Each mask type must follow naming: <prefix>_<type>_mask.nii.gz
 mask_types = [
     ("lesion_masks", "lesion_registered"),
     ("vessel_masks", "vessel_registered"),
@@ -242,14 +267,14 @@ for mask_folder_name, output_folder_name in mask_types:
     register_mask_dataset(
         mask_folder=f"data/{mask_folder_name}/",
         transform_folder="data/registered/",
-        reference_folder="data/registered/",
+        registered_folder="data/registered/",
         output_path=f"data/{output_folder_name}/",
         is_binary=True,
         saving_mode="case",
         debug=True
     )
     
-    print(f"✓ Completed {mask_folder_name}")
+    print(f"Completed {mask_folder_name}")
 ```
 
 ### Register Probability Maps
@@ -259,6 +284,7 @@ Process continuous-valued masks:
 from nidataset.preprocessing import register_mask_dataset
 
 # Register tissue probability maps
+# Files must be named like: case001_gray_matter_prob_mask.nii.gz
 probability_maps = [
     "gray_matter_prob",
     "white_matter_prob",
@@ -271,7 +297,7 @@ for prob_map in probability_maps:
     register_mask_dataset(
         mask_folder=f"data/{prob_map}/",
         transform_folder="data/registered/transforms/",
-        reference_folder="data/registered/registered/",
+        registered_folder="data/registered/registered/",
         output_path=f"data/{prob_map}_registered/",
         is_binary=False,  # Use linear interpolation
         saving_mode="folder",
@@ -287,30 +313,31 @@ from nidataset.preprocessing import register_mask_dataset
 import os
 
 def validate_and_register_masks(mask_folder, transform_folder, 
-                                reference_folder, output_path, 
+                                registered_folder, output_path, 
                                 saving_mode="case"):
     """Register masks with pre-validation."""
     
     # Validate input folder exists
     if not os.path.isdir(mask_folder):
-        print(f"✗ Error: Mask folder does not exist: {mask_folder}")
+        print(f"Error: Mask folder does not exist: {mask_folder}")
         return False
     
-    # Count mask files
-    mask_files = [f for f in os.listdir(mask_folder) if f.endswith(".nii.gz")]
+    # Count mask files (must end with _mask.nii.gz)
+    mask_files = [f for f in os.listdir(mask_folder) 
+                  if f.endswith("_mask.nii.gz")]
     if not mask_files:
-        print(f"✗ Error: No mask files found in {mask_folder}")
+        print(f"Error: No _mask.nii.gz files found in {mask_folder}")
         return False
     
     print(f"Found {len(mask_files)} mask files to process")
     
     # Validate transform and reference folders
     if not os.path.isdir(transform_folder):
-        print(f"✗ Error: Transform folder does not exist: {transform_folder}")
+        print(f"Error: Transform folder does not exist: {transform_folder}")
         return False
     
-    if not os.path.isdir(reference_folder):
-        print(f"✗ Error: Reference folder does not exist: {reference_folder}")
+    if not os.path.isdir(registered_folder):
+        print(f"Error: Reference folder does not exist: {registered_folder}")
         return False
     
     # Process masks
@@ -318,24 +345,24 @@ def validate_and_register_masks(mask_folder, transform_folder,
         register_mask_dataset(
             mask_folder=mask_folder,
             transform_folder=transform_folder,
-            reference_folder=reference_folder,
+            registered_folder=registered_folder,
             output_path=output_path,
             is_binary=True,
             saving_mode=saving_mode,
             debug=True
         )
-        print(f"✓ Successfully registered masks to {output_path}")
+        print(f"Successfully registered masks to {output_path}")
         return True
     
     except Exception as e:
-        print(f"✗ Registration failed: {str(e)}")
+        print(f"Registration failed: {str(e)}")
         return False
 
 # Use validation function
 validate_and_register_masks(
     mask_folder="data/lesion_masks/",
     transform_folder="data/registered/",
-    reference_folder="data/registered/",
+    registered_folder="data/registered/",
     output_path="data/lesion_registered/",
     saving_mode="case"
 )
@@ -351,18 +378,22 @@ import os
 def count_registered_masks(mask_folder, output_path, saving_mode="case"):
     """Count successfully registered masks."""
     
-    mask_files = [f for f in os.listdir(mask_folder) if f.endswith(".nii.gz")]
+    mask_files = [f for f in os.listdir(mask_folder) 
+                  if f.endswith("_mask.nii.gz")]
     total_masks = len(mask_files)
     
     registered_count = 0
     
     for mask_file in mask_files:
-        prefix = mask_file.replace(".nii.gz", "")
+        # Extract prefix by removing _mask.nii.gz
+        prefix = mask_file.replace("_mask.nii.gz", "")
         
         if saving_mode == "case":
-            output_file = os.path.join(output_path, prefix, f"{prefix}_mask_registered.nii.gz")
+            output_file = os.path.join(output_path, prefix, 
+                                      f"{prefix}_registered_mask.nii.gz")
         else:
-            output_file = os.path.join(output_path, f"{prefix}_mask_registered.nii.gz")
+            output_file = os.path.join(output_path, 
+                                      f"{prefix}_registered_mask.nii.gz")
         
         if os.path.exists(output_file):
             registered_count += 1
@@ -373,7 +404,7 @@ def count_registered_masks(mask_folder, output_path, saving_mode="case"):
 register_mask_dataset(
     mask_folder="data/vessel_masks/",
     transform_folder="data/registered/",
-    reference_folder="data/registered/",
+    registered_folder="data/registered/",
     output_path="data/vessel_registered/",
     saving_mode="case",
     debug=False
@@ -408,9 +439,9 @@ def complete_registration_pipeline(base_dir, template_path, template_mask_path):
     base_dir/
     ├── scans/
     ├── brain_masks/
-    ├── lesion_masks/
-    ├── vessel_masks/
-    └── roi_masks/
+    ├── lesion_masks/        # Files: case001_lesion_mask.nii.gz, etc.
+    ├── vessel_masks/        # Files: case001_vessel_mask.nii.gz, etc.
+    └── roi_masks/           # Files: case001_roi_mask.nii.gz, etc.
     """
     
     print("=" * 60)
@@ -447,7 +478,7 @@ def complete_registration_pipeline(base_dir, template_path, template_mask_path):
         
         # Skip if folder doesn't exist
         if not os.path.isdir(mask_folder):
-            print(f"\n⊗ Skipping {description}: folder not found")
+            print(f"\nSkipping {description}: folder not found")
             results[folder_name] = "skipped"
             continue
         
@@ -457,26 +488,25 @@ def complete_registration_pipeline(base_dir, template_path, template_mask_path):
             register_mask_dataset(
                 mask_folder=mask_folder,
                 transform_folder=f"{base_dir}/registered/",
-                reference_folder=f"{base_dir}/registered/",
+                registered_folder=f"{base_dir}/registered/",
                 output_path=f"{base_dir}/{folder_name}_registered/",
                 is_binary=is_binary,
                 saving_mode="case",
                 debug=True
             )
             results[folder_name] = "success"
-            print(f"✓ {description} registered successfully")
+            print(f"{description} registered successfully")
         
         except Exception as e:
             results[folder_name] = f"failed: {str(e)}"
-            print(f"✗ {description} registration failed: {str(e)}")
+            print(f"{description} registration failed: {str(e)}")
     
     print("\n" + "=" * 60)
     print("PIPELINE SUMMARY")
     print("=" * 60)
     
     for dataset, status in results.items():
-        status_symbol = "✓" if status == "success" else "✗" if "failed" in status else "⊗"
-        print(f"{status_symbol} {dataset}: {status}")
+        print(f"{dataset}: {status}")
 
 # Execute pipeline
 complete_registration_pipeline(
@@ -496,22 +526,29 @@ import os
 from tqdm import tqdm
 
 def process_single_mask(mask_file, mask_folder, transform_folder, 
-                        reference_folder, output_path, saving_mode):
+                        registered_folder, output_path, saving_mode):
     """Process a single mask file."""
     
-    prefix = mask_file.replace(".nii.gz", "")
+    # Extract prefix by removing _mask.nii.gz
+    prefix = mask_file.replace("_mask.nii.gz", "")
     mask_path = os.path.join(mask_folder, mask_file)
     
     # Find corresponding files based on saving mode
     if saving_mode == "case":
-        transform_file = os.path.join(transform_folder, prefix, f"{prefix}_transformation.tfm")
-        reference_file = os.path.join(reference_folder, prefix, f"{prefix}_registered.nii.gz")
-        output_file = os.path.join(output_path, prefix, f"{prefix}_mask_registered.nii.gz")
+        transform_file = os.path.join(transform_folder, prefix, 
+                                     f"{prefix}_transformation.tfm")
+        reference_file = os.path.join(registered_folder, prefix, 
+                                     f"{prefix}_registered.nii.gz")
+        output_file = os.path.join(output_path, prefix, 
+                                  f"{prefix}_registered_mask.nii.gz")
         os.makedirs(os.path.join(output_path, prefix), exist_ok=True)
     else:
-        transform_file = os.path.join(transform_folder, f"{prefix}_transformation.tfm")
-        reference_file = os.path.join(reference_folder, f"{prefix}_registered.nii.gz")
-        output_file = os.path.join(output_path, f"{prefix}_mask_registered.nii.gz")
+        transform_file = os.path.join(transform_folder, 
+                                     f"{prefix}_transformation.tfm")
+        reference_file = os.path.join(registered_folder, 
+                                     f"{prefix}_registered.nii.gz")
+        output_file = os.path.join(output_path, 
+                                  f"{prefix}_registered_mask.nii.gz")
     
     # Check if required files exist
     if not os.path.exists(transform_file) or not os.path.exists(reference_file):
@@ -521,7 +558,7 @@ def process_single_mask(mask_file, mask_folder, transform_folder,
         register_mask(
             mask_path=mask_path,
             transform_path=transform_file,
-            reference_image_path=reference_file,
+            registered_path=reference_file,
             output_path=output_file,
             is_binary=True,
             debug=False
@@ -530,12 +567,13 @@ def process_single_mask(mask_file, mask_folder, transform_folder,
     except Exception as e:
         return prefix, f"failed: {str(e)}"
 
-def parallel_register_masks(mask_folder, transform_folder, reference_folder,
+def parallel_register_masks(mask_folder, transform_folder, registered_folder,
                             output_path, saving_mode="case", n_jobs=-1):
     """Register masks in parallel."""
     
-    # Get mask files
-    mask_files = [f for f in os.listdir(mask_folder) if f.endswith(".nii.gz")]
+    # Get mask files (must end with _mask.nii.gz)
+    mask_files = [f for f in os.listdir(mask_folder) 
+                  if f.endswith("_mask.nii.gz")]
     
     if not mask_files:
         print("No mask files found")
@@ -547,7 +585,7 @@ def parallel_register_masks(mask_folder, transform_folder, reference_folder,
     results = Parallel(n_jobs=n_jobs)(
         delayed(process_single_mask)(
             mask_file, mask_folder, transform_folder, 
-            reference_folder, output_path, saving_mode
+            registered_folder, output_path, saving_mode
         )
         for mask_file in tqdm(mask_files, desc="Registering masks")
     )
@@ -566,7 +604,7 @@ def parallel_register_masks(mask_folder, transform_folder, reference_folder,
 results = parallel_register_masks(
     mask_folder="data/vessel_masks/",
     transform_folder="data/registered/",
-    reference_folder="data/registered/",
+    registered_folder="data/registered/",
     output_path="data/vessel_registered/",
     saving_mode="case",
     n_jobs=8  # Use 8 CPU cores
@@ -586,27 +624,32 @@ import os
 register_mask_dataset(
     mask_folder="data/lesion_masks/",
     transform_folder="data/registered/",
-    reference_folder="data/registered/",
+    registered_folder="data/registered/",
     output_path="data/lesion_registered/",
     saving_mode="case",
     debug=True
 )
 
 # Quality control
-def check_registered_masks(output_path, reference_folder, saving_mode="case"):
+def check_registered_masks(output_path, registered_folder, saving_mode="case"):
     """Verify registered mask quality."""
     
-    cases = [d for d in os.listdir(output_path) if os.path.isdir(os.path.join(output_path, d))]
+    cases = [d for d in os.listdir(output_path) 
+             if os.path.isdir(os.path.join(output_path, d))]
     
     qc_results = []
     
     for case in cases:
         if saving_mode == "case":
-            mask_path = os.path.join(output_path, case, f"{case}_mask_registered.nii.gz")
-            ref_path = os.path.join(reference_folder, case, f"{case}_registered.nii.gz")
+            mask_path = os.path.join(output_path, case, 
+                                    f"{case}_registered_mask.nii.gz")
+            ref_path = os.path.join(registered_folder, case, 
+                                   f"{case}_registered.nii.gz")
         else:
-            mask_path = os.path.join(output_path, f"{case}_mask_registered.nii.gz")
-            ref_path = os.path.join(reference_folder, f"{case}_registered.nii.gz")
+            mask_path = os.path.join(output_path, 
+                                    f"{case}_registered_mask.nii.gz")
+            ref_path = os.path.join(registered_folder, 
+                                   f"{case}_registered.nii.gz")
         
         if not os.path.exists(mask_path) or not os.path.exists(ref_path):
             continue
@@ -637,7 +680,7 @@ def check_registered_masks(output_path, reference_folder, saving_mode="case"):
 # Run QC
 qc_results = check_registered_masks(
     output_path="data/lesion_registered/",
-    reference_folder="data/registered/",
+    registered_folder="data/registered/",
     saving_mode="case"
 )
 
@@ -649,7 +692,7 @@ print("=" * 60)
 passed_count = sum(1 for r in qc_results if r['passed'])
 
 for result in qc_results:
-    status = "✓ PASS" if result['passed'] else "✗ FAIL"
+    status = "PASS" if result['passed'] else "FAIL"
     print(f"\n{status} - {result['case']}")
     print(f"  Shapes match: {result['shapes_match']}")
     print(f"  Coverage: {result['coverage_percent']:.2f}%")
@@ -679,13 +722,13 @@ def convert_case_to_folder(input_path, output_path):
         case_dir = os.path.join(input_path, case)
         
         # Find registered mask
-        mask_file = f"{case}_mask_registered.nii.gz"
+        mask_file = f"{case}_registered_mask.nii.gz"
         src_path = os.path.join(case_dir, mask_file)
         
         if os.path.exists(src_path):
             dst_path = os.path.join(output_path, mask_file)
             shutil.copy2(src_path, dst_path)
-            print(f"✓ Copied {case}")
+            print(f"Copied {case}")
     
     print(f"\nConverted {len(cases)} cases from case-mode to folder-mode")
 
@@ -719,10 +762,11 @@ register_CTA_dataset(
 )
 
 print("\nRegistering lesion masks...")
+# Lesion masks must be named: case001_lesion_mask.nii.gz, etc.
 register_mask_dataset(
     mask_folder="data/lesion_masks/",
     transform_folder="data/registered/",
-    reference_folder="data/registered/",
+    registered_folder="data/registered/",
     output_path="data/lesion_registered/",
     saving_mode="case"
 )
@@ -735,8 +779,10 @@ def extract_lesion_statistics(registered_folder, lesion_folder, cases):
     
     for case in cases:
         # Load registered scan and lesion mask
-        scan_path = os.path.join(registered_folder, case, f"{case}_registered.nii.gz")
-        lesion_path = os.path.join(lesion_folder, case, f"{case}_mask_registered.nii.gz")
+        scan_path = os.path.join(registered_folder, case, 
+                                f"{case}_registered.nii.gz")
+        lesion_path = os.path.join(lesion_folder, case, 
+                                  f"{case}_registered_mask.nii.gz")
         
         if not os.path.exists(scan_path) or not os.path.exists(lesion_path):
             continue
@@ -778,41 +824,4 @@ print(df.to_string(index=False))
 
 # Save to CSV
 df.to_csv("lesion_statistics.csv", index=False)
-print("\nStatistics saved to lesion_statistics.csv")
-```
-
-## Typical Workflow
-
-```python
-from nidataset.preprocessing import register_CTA_dataset, register_mask_dataset
-
-# Phase 1: Register primary scans
-register_CTA_dataset(
-    nii_folder="data/scans/",
-    mask_folder="data/brain_masks/",
-    template_path="template.nii.gz",
-    template_mask_path="template_mask.nii.gz",
-    output_path="data/registered/",
-    saving_mode="case",
-    cleanup=True
-)
-
-# Phase 2: Propagate additional masks
-mask_types = ["lesion", "vessel", "roi"]
-
-for mask_type in mask_types:
-    register_mask_dataset(
-        mask_folder=f"data/{mask_type}_masks/",
-        transform_folder="data/registered/",
-        reference_folder="data/registered/",
-        output_path=f"data/{mask_type}_registered/",
-        is_binary=True,
-        saving_mode="case"
-    )
-
-# Phase 3: Use registered data for:
-# - Population analysis
-# - Statistical comparisons
-# - Machine learning datasets
-# - Atlas creation
-```
+print("\nStatistics saved to lesion_statistics.

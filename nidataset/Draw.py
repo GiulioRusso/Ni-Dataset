@@ -289,7 +289,7 @@ def draw_2D_annotations(annotation_path: str,
         )
 
     # load the image
-    image = cv2.imread(image_path)
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if image is None:
         raise ValueError(f"Error: Failed to load image from '{image_path}'.")
 
@@ -325,7 +325,7 @@ def draw_2D_annotations(annotation_path: str,
             radius_y = int(row['RADIUS_Y'])
 
             # draw ellipse with axes corresponding to radii
-            cv2.ellipse(image, (center_x, center_y), (radius_x, radius_y), 
+            cv2.ellipse(image, (center_x, center_y), (radius_x, radius_y),
                        0, 0, 360, yellow, thickness)
             # draw center point
             cv2.circle(image, (center_x, center_y), 1, yellow, -1)
@@ -349,7 +349,7 @@ def draw_2D_annotations(annotation_path: str,
     # extract filename and extension
     base_name = os.path.basename(image_path)
     name, ext = os.path.splitext(base_name)
-    output_filename = f"{name}_annotated{ext}"
+    output_filename = f"{name}_annotated.png"
     output_image_path = os.path.join(output_path, output_filename)
 
     # save the output image
