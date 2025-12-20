@@ -331,10 +331,10 @@ def extract_slices_dataset(nii_folder: str,
         print(f"\nSlice extraction statistics saved in: '{stats_file}'{padding_info}")
 
 
-def extract_annotations(nii_path: str, 
-                        output_path: str, 
+def extract_annotations(nii_path: str,
+                        output_path: str,
                         view: str = "axial",
-                        saving_mode: str = "slice", 
+                        saving_mode: str = "slice",
                         data_mode: str = "center",
                         target_size: Optional[Tuple[int, int]] = None,
                         debug: bool = False) -> None:
@@ -347,44 +347,44 @@ def extract_annotations(nii_path: str,
 
         <NIFTI FILENAME>.csv
 
-    :param nii_path: 
+    :param nii_path:
         Path to the input .nii.gz file with shape (X, Y, Z).
-    
-    :param output_path: 
+
+    :param output_path:
         Path where the CSV annotations will be saved.
-    
-    :param view: 
+
+    :param view:
         Anatomical view for annotation extraction:
-        
-        - ``"axial"`` → extracts along the Z-axis.
-        - ``"coronal"`` → extracts along the Y-axis.
-        - ``"sagittal"`` → extracts along the X-axis.
-    
-    :param saving_mode: 
+
+        - ``"axial"`` → extracts along the Z-axis (2D: X=Y_3D, Y=X_3D).
+        - ``"coronal"`` → extracts along the Y-axis (2D: X=Z_3D, Y=X_3D).
+        - ``"sagittal"`` → extracts along the X-axis (2D: X=Z_3D, Y=Y_3D).
+
+    :param saving_mode:
         - ``"slice"`` → generates a CSV per slice.
         - ``"volume"`` → generates a single CSV for the whole volume.
-    
-    :param data_mode: 
+
+    :param data_mode:
         - ``"center"`` → saves the center of the bounding box.
         - ``"box"`` → saves the bounding box coordinates.
         - ``"radius"`` → saves the center and radius (from center to bounding box border).
-    
+
     :param target_size:
         Optional target dimensions (height, width) for coordinate adjustment. If specified,
         coordinates will be adjusted to account for padding that would be applied to match
         the target size. This ensures annotations align with padded images from ``extract_slices``.
         If ``None``, coordinates are saved at their original values. Note that this is applied only if
         the saving_mode is ``"slice"``.
-        
+
         Example: ``target_size=(512, 512)``
-    
-    :param debug: 
+
+    :param debug:
         If ``True``, prints additional information about the extraction.
 
-    :raises FileNotFoundError: 
+    :raises FileNotFoundError:
         If the input NIfTI file does not exist.
-    
-    :raises ValueError: 
+
+    :raises ValueError:
         If the NIfTI file is empty, has invalid extension, or invalid parameters.
         If the view is not 'axial', 'coronal', or 'sagittal'.
         If the saving_mode and data_mode are not correct.
@@ -392,22 +392,22 @@ def extract_annotations(nii_path: str,
     Example
     -------
     >>> from nidataset.slices import extract_annotations
-    >>> 
+    >>>
     >>> # define paths
     >>> nii_path = "path/to/input_image.nii.gz"
     >>> output_path = "path/to/output_directory"
-    >>> 
+    >>>
     >>> # choose the anatomical view ('axial', 'coronal', or 'sagittal')
     >>> view = "axial"
-    >>> 
+    >>>
     >>> # extract annotations without padding adjustment
-    >>> extract_annotations(nii_path=nii_path, 
-    ...                     output_path=output_path, 
-    ...                     view=view, 
+    >>> extract_annotations(nii_path=nii_path,
+    ...                     output_path=output_path,
+    ...                     view=view,
     ...                     saving_mode="slice",
     ...                     data_mode="center",
     ...                     debug=True)
-    >>> 
+    >>>
     >>> # extract annotations with padding adjustment to match 512x512 images
     >>> extract_annotations(nii_path=nii_path,
     ...                     output_path=output_path,
@@ -416,7 +416,7 @@ def extract_annotations(nii_path: str,
     ...                     data_mode="box",
     ...                     target_size=(512, 512),
     ...                     debug=True)
-    >>> 
+    >>>
     >>> # extract annotations with center and radius
     >>> extract_annotations(nii_path=nii_path,
     ...                     output_path=output_path,
@@ -463,30 +463,34 @@ def extract_annotations(nii_path: str,
     # calculate padding offsets if target_size is specified
     pad_offset_x = 0
     pad_offset_y = 0
-    
+
     if target_size is not None:
         target_h, target_w = target_size
-        
+
         # determine slice dimensions based on view
+        # Note: When slices are extracted, they follow numpy convention [height, width]
+        # Axial: slice is nii_data[:, :, z] → shape (X_3D, Y_3D) → [height=X_3D, width=Y_3D]
+        # Coronal: slice is nii_data[:, y, :] → shape (X_3D, Z_3D) → [height=X_3D, width=Z_3D]
+        # Sagittal: slice is nii_data[x, :, :] → shape (Y_3D, Z_3D) → [height=Y_3D, width=Z_3D]
         if view == "axial":
-            current_h, current_w = nii_data.shape[0], nii_data.shape[1]
+            current_h, current_w = nii_data.shape[0], nii_data.shape[1]  # X_3D, Y_3D
         elif view == "coronal":
-            current_h, current_w = nii_data.shape[0], nii_data.shape[2]
+            current_h, current_w = nii_data.shape[0], nii_data.shape[2]  # X_3D, Z_3D
         else:  # sagittal
-            current_h, current_w = nii_data.shape[1], nii_data.shape[2]
-        
+            current_h, current_w = nii_data.shape[1], nii_data.shape[2]  # Y_3D, Z_3D
+
         # validate that target size is not smaller than current size
         if target_h < current_h or target_w < current_w:
             raise ValueError(
                 f"Error: target_size {target_size} is smaller than slice dimensions "
                 f"({current_h}, {current_w}). Target size must be >= slice dimensions."
             )
-        
+
         # calculate padding offsets (matches extract_slices symmetric padding)
         pad_h = target_h - current_h
         pad_w = target_w - current_w
-        pad_offset_x = pad_h // 2  # offset for first dimension
-        pad_offset_y = pad_w // 2  # offset for second dimension
+        pad_offset_y = pad_h // 2  # offset for Y dimension (height, rows)
+        pad_offset_x = pad_w // 2  # offset for X dimension (width, columns)
 
     # identify all 3D bounding boxes
     unique_labels = np.unique(nii_data)
@@ -498,56 +502,73 @@ def extract_annotations(nii_path: str,
     for label in tqdm(unique_labels, desc=f"Processing {prefix}", unit="box"):
         positions = np.argwhere(nii_data == label)
 
-        # get min/max for bounding box
+        # get min/max for bounding box in 3D coordinates (numpy indexing: [X_3D, Y_3D, Z_3D])
         min_x, min_y, min_z = np.min(positions, axis=0)
         max_x, max_y, max_z = np.max(positions, axis=0)
 
-        # adjust coordinates based on view and apply padding offset
+        # calculate 3D centers and radii
+        center_x_3d = (min_x + max_x) / 2
+        center_y_3d = (min_y + max_y) / 2
+        center_z_3d = (min_z + max_z) / 2
+        radius_x_3d = (max_x - min_x) / 2
+        radius_y_3d = (max_y - min_y) / 2
+        radius_z_3d = (max_z - min_z) / 2
+
+        # Apply coordinate mapping based on view
+        # Image coordinates (x, y) map to (column, row) = (width, height)
+        # So 2D X (in CSV) corresponds to column/width position
+        # And 2D Y (in CSV) corresponds to row/height position
+
         if view == "axial":
-            center_x = (min_x + max_x) / 2 + pad_offset_x
-            center_y = (min_y + max_y) / 2 + pad_offset_y
-            center_z = (min_z + max_z) / 2
-            radius_x = (max_x - min_x) / 2
-            radius_y = (max_y - min_y) / 2
-            radius_z = (max_z - min_z) / 2
-            
+            # Axial: 2D X=Y_3D, 2D Y=X_3D, Slice=Z_3D
+            coord_2d_x = center_y_3d + pad_offset_x  # 2D X = Y_3D
+            coord_2d_y = center_x_3d + pad_offset_y  # 2D Y = X_3D
+            slice_min = min_z
+            slice_max = max_z
+
             if data_mode == "center":
-                box_data = [center_x, center_y, min_z, max_z]
+                box_data = [coord_2d_x, coord_2d_y, slice_min, slice_max]
             elif data_mode == "radius":
-                box_data = [center_x, center_y, center_z, radius_x, radius_y, radius_z]
+                box_data = [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
             else:  # box
-                box_data = [min_x + pad_offset_x, min_y + pad_offset_y, min_z, 
-                           max_x + pad_offset_x, max_y + pad_offset_y, max_z]
+                box_data = [min_y + pad_offset_x, min_x + pad_offset_y, slice_min,
+                            max_y + pad_offset_x, max_x + pad_offset_y, slice_max]
+
         elif view == "coronal":
-            center_x = (min_x + max_x) / 2 + pad_offset_x
-            center_y = (min_y + max_y) / 2
-            center_z = (min_z + max_z) / 2 + pad_offset_y
-            radius_x = (max_x - min_x) / 2
-            radius_y = (max_y - min_y) / 2
-            radius_z = (max_z - min_z) / 2
-            
+            # Coronal: 2D X=Z_3D, 2D Y=X_3D, Slice=Y_3D
+            # Slice shape is [X_3D, Z_3D] (height, width)
+            # 2D X (column position) maps to Z_3D
+            # 2D Y (row position) maps to X_3D
+            coord_2d_x = center_z_3d + pad_offset_x
+            coord_2d_y = center_x_3d + pad_offset_y
+            slice_min = min_y
+            slice_max = max_y
+
             if data_mode == "center":
-                box_data = [center_x, center_z, min_y, max_y]
+                box_data = [coord_2d_x, coord_2d_y, slice_min, slice_max]
             elif data_mode == "radius":
-                box_data = [center_x, center_y, center_z, radius_x, radius_y, radius_z]
+                box_data = [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
             else:  # box
-                box_data = [min_x + pad_offset_x, min_z + pad_offset_y, min_y,
-                           max_x + pad_offset_x, max_z + pad_offset_y, max_y]
+                box_data = [min_z + pad_offset_x, min_x + pad_offset_y, slice_min,
+                            max_z + pad_offset_x, max_x + pad_offset_y, slice_max]
+
         else:  # sagittal
-            center_x = (min_x + max_x) / 2
-            center_y = (min_y + max_y) / 2 + pad_offset_x
-            center_z = (min_z + max_z) / 2 + pad_offset_y
-            radius_x = (max_x - min_x) / 2
-            radius_y = (max_y - min_y) / 2
-            radius_z = (max_z - min_z) / 2
-            
+            # Sagittal: 2D X=Z_3D, 2D Y=Y_3D, Slice=X_3D
+            # Slice shape is [Y_3D, Z_3D] (height, width)
+            # 2D X (column position) maps to Z_3D
+            # 2D Y (row position) maps to Y_3D
+            coord_2d_x = center_z_3d + pad_offset_x
+            coord_2d_y = center_y_3d + pad_offset_y
+            slice_min = min_x
+            slice_max = max_x
+
             if data_mode == "center":
-                box_data = [center_y, center_z, min_x, max_x]
+                box_data = [coord_2d_x, coord_2d_y, slice_min, slice_max]
             elif data_mode == "radius":
-                box_data = [center_x, center_y, center_z, radius_x, radius_y, radius_z]
+                box_data = [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
             else:  # box
-                box_data = [min_y + pad_offset_x, min_z + pad_offset_y, min_x,
-                           max_y + pad_offset_x, max_z + pad_offset_y, max_x]
+                box_data = [min_z + pad_offset_x, min_y + pad_offset_y, slice_min,
+                            max_z + pad_offset_x, max_y + pad_offset_y, slice_max]
 
         bounding_boxes.append(box_data)
 
@@ -582,29 +603,64 @@ def extract_annotations(nii_path: str,
         # build a dict record for each slice with annotation
         for box in bounding_boxes:
             if data_mode == "radius":
-                center_z, radius_z = box[2], box[5]
-                z_min, z_max = int(center_z - radius_z), int(center_z + radius_z)
-            else:
-                z_min, z_max = int(box[2]), int(box[3] if data_mode == "center" else box[5])
+                # For radius mode, use the appropriate 3D coordinate for slice number
+                if view == "axial":
+                    center_slice = box[2]  # center_z_3d
+                    radius_slice = box[5]  # radius_z_3d
+                elif view == "coronal":
+                    center_slice = box[1]  # center_y_3d
+                    radius_slice = box[4]  # radius_y_3d
+                else:  # sagittal
+                    center_slice = box[0]  # center_x_3d
+                    radius_slice = box[3]  # radius_x_3d
 
-            for z in range(z_min, z_max + 1):
-                if z not in slice_annotations:
-                    slice_annotations[z] = []
+                slice_min = int(center_slice - radius_slice)
+                slice_max = int(center_slice + radius_slice)
+            else:
+                slice_min = int(box[2])
+                slice_max = int(box[3] if data_mode == "center" else box[5])
+
+            for slice_num in range(slice_min, slice_max + 1):
+                if slice_num not in slice_annotations:
+                    slice_annotations[slice_num] = []
 
                 if data_mode == "center":
-                    # store only X and Y for center mode
-                    slice_annotations[z].append([int(box[0]), int(box[1])])
+                    # store only 2D X and Y for center mode
+                    # box format: [coord_2d_x, coord_2d_y, slice_min, slice_max]
+                    slice_annotations[slice_num].append([box[0], box[1]])
                 elif data_mode == "radius":
-                    # store center and radii for radius mode
-                    slice_annotations[z].append([int(box[0]), int(box[1]), int(box[3]), int(box[4])])
+                    # For radius mode, box contains 3D data: [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
+                    # We need to convert to 2D coordinates with correct mapping
+                    if view == "axial":
+                        # Axial: 2D X=Y_3D, 2D Y=X_3D
+                        coord_2d_x = box[1] + pad_offset_x  # 2D X = Y_3D = center_y_3d
+                        coord_2d_y = box[0] + pad_offset_y  # 2D Y = X_3D = center_x_3d
+                        rx = box[4]  # radius for 2D X = radius_y_3d
+                        ry = box[3]  # radius for 2D Y = radius_x_3d
+                        slice_annotations[slice_num].append([coord_2d_x, coord_2d_y, rx, ry])
+                    elif view == "coronal":
+                        # Coronal: 2D X=Z_3D, 2D Y=X_3D
+                        coord_2d_x = box[2] + pad_offset_x  # 2D X = Z_3D = center_z_3d
+                        coord_2d_y = box[0] + pad_offset_y  # 2D Y = X_3D = center_x_3d
+                        rx = box[5]  # radius for 2D X = radius_z_3d
+                        ry = box[3]  # radius for 2D Y = radius_x_3d
+                        slice_annotations[slice_num].append([coord_2d_x, coord_2d_y, rx, ry])
+                    else:  # sagittal
+                        # Sagittal: 2D X=Z_3D, 2D Y=Y_3D
+                        coord_2d_x = box[2] + pad_offset_x  # 2D X = Z_3D = center_z_3d
+                        coord_2d_y = box[1] + pad_offset_y  # 2D Y = Y_3D = center_y_3d
+                        rx = box[5]  # radius for 2D X = radius_z_3d
+                        ry = box[4]  # radius for 2D Y = radius_y_3d
+                        slice_annotations[slice_num].append([coord_2d_x, coord_2d_y, rx, ry])
                 else:  # box
-                    # store full bounding box for box mode
-                    slice_annotations[z].append([int(box[0]), int(box[1]), int(box[3]), int(box[4])])
+                    # box format for center and box modes: already has 2D coords in [0] and [1]
+                    # and bounds in [3] and [4]
+                    slice_annotations[slice_num].append([box[0], box[1], box[3], box[4]])
 
         # process each slice
         num_slices = len(slice_annotations)
-        for z, boxes in tqdm(slice_annotations.items(), desc=f"Processing {prefix} (Slices)", unit="slice"):
-            slice_filename = f"{prefix}_{view}_{str(z).zfill(3)}.csv"
+        for slice_num, boxes in tqdm(slice_annotations.items(), desc=f"Processing {prefix} (Slices)", unit="slice"):
+            slice_filename = f"{prefix}_{view}_{str(slice_num).zfill(3)}.csv"
             slice_file = os.path.join(output_path, slice_filename)
 
             with open(slice_file, mode="w", newline="") as csvfile:
@@ -622,7 +678,7 @@ def extract_annotations(nii_path: str,
             padding_info = f"\nPadding adjustment applied: target size {target_size}" if target_size else "\nNo padding adjustment applied"
             print(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
                   f"{padding_info}\nTotal slices with annotations extracted: {num_slices}")
-            
+
 
 def extract_annotations_dataset(nii_folder: str, 
                                 output_path: str, 
@@ -736,8 +792,8 @@ def extract_annotations_dataset(nii_folder: str,
         raise ValueError(f"Error: saving_mode must be either 'case' or 'view'. Got '{saving_mode}' instead.")
     if extraction_mode not in ["slice", "volume"]:
         raise ValueError(f"Error: extraction_mode must be either 'slice' or 'volume'. Got '{extraction_mode}' instead.")
-    if data_mode not in ["center", "box"]:
-        raise ValueError(f"Error: data_mode must be either 'center' or 'box'. Got '{data_mode}' instead.")
+    if data_mode not in ["center", "box", "radius"]:
+        raise ValueError(f"Error: data_mode must be either 'center', 'box', 'radius'. Got '{data_mode}' instead.")
     
     # create output dir if it does not exist
     if not os.path.exists(output_path):

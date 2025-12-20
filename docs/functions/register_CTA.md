@@ -32,6 +32,24 @@ register_CTA(
 
 This function aligns a medical imaging volume to a reference template through an optimized registration pipeline that combines preprocessing, masking, and mutual information-based optimization. The process ensures robust alignment even with intensity variations and noise.
 
+<div style="display: flex; gap: 10px; text-align: center;">
+  <figure style="flex: 1;">
+    <img src="../images/register-CTA-1.png", width=100%>
+  </figure>
+  <figure style="flex: 1;">
+    <img src="../images/register-CTA-2.png" width="100%">
+  </figure>
+  <figure style="flex: 1;">
+    <img src="../images/register-CTA-3.png" width="100%">
+  </figure>
+</div>
+
+<br>
+
+<img src="../images/MNI-space.jpeg" alt="https://dartbrains.org/content/Preprocessing.html" width=500px>
+
+<br>
+
 **Registration pipeline**:
 1. **Preprocessing**: Sequential Gaussian filtering with intensity clipping
 2. **Initialization**: Moment-based or geometry-based alignment for initial positioning
