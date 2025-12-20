@@ -23,17 +23,9 @@ skull_CTA(
 
 This function implements a multi-stage skull-stripping pipeline specifically designed for contrast-enhanced angiography imaging. The pipeline combines intensity preprocessing with FSL's Brain Extraction Tool (BET) to isolate brain tissue and vasculature from skull and non-brain structures.
 
-<div style="display: flex; gap: 10px; text-align: center;">
-  <figure style="flex: 1;">
-    <img src="../images/skull-CTA-1.png" width=100%>
-  </figure>
-  <figure style="flex: 1;">
-    <img src="../images/skull-CTA-2.png" width="100%">
-  </figure>
-  <figure style="flex: 1;">
-    <img src="../images/skull-CTA-3.png" width="100%">
-  </figure>
-</div>
+<br><img src="../images/skull-CTA-1.png" width="100%"><br>
+<br><img src="../images/skull-CTA-2.png" width="100%"><br>
+<br><img src="../images/skull-CTA-3.png" width="100%"><br>
 
 **Processing pipeline**:
 1. **Initial thresholding**: Clip intensities to [0, 100] range

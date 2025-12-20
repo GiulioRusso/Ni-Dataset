@@ -23,17 +23,10 @@ register_annotation(
 
 This function transforms an annotation (typically a bounding box mask) using a previously computed registration transformation. It can either preserve the deformed annotation or create a new tight bounding box around the transformed region, which is particularly useful for maintaining axis-aligned boxes after rotation or spatial transformations.
 
-<div style="display: flex; gap: 10px; text-align: center;">
-  <figure style="flex: 1;">
-    <img src="../images/register-annotation-1.png" width=100%>
-  </figure>
-  <figure style="flex: 1;">
-    <img src="../images/register-annotation-2.png" width="100%">
-  </figure>
-  <figure style="flex: 1;">
-    <img src="../images/register-annotation-3.png" width="100%">
-  </figure>
-</div>
+<br><img src="../images/register-annotation-1.png" width="100%"><br>
+<br><img src="../images/register-annotation-2.png" width="100%"><br>
+<br><img src="../images/register-annotation-3.png" width="100%"><br>
+
 
 
 **Transformation pipeline**:
