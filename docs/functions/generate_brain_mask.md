@@ -29,14 +29,8 @@ This function creates a binary mask that isolates brain tissue from background a
 
 The result is a clean, connected binary mask suitable for skull stripping, region of interest extraction, or preprocessing pipelines.
 
-<div style="display: flex; gap: 10px; text-align: center;">
-  <figure style="flex: 1;">
-    <img src="../images/brain-mask-1.png" width=100%>
-  </figure>
-  <figure style="flex: 1;">
-    <img src="../images/brain-mask-2.png" width=100%>
-  </figure>
-</div>
+<br> <img src="../images/brain-mask-1.png" width="100%"> <br>
+<br> <img src="../images/brain-mask-2.png" width="100%"> <br>
 
 ## Parameters
 
