@@ -1,7 +1,7 @@
 ---
 title: extract_slices_dataset
 parent: Package Functions
-nav_order: 12
+nav_order: 11
 ---
 
 # `extract_slices_dataset`

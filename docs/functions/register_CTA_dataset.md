@@ -1,7 +1,7 @@
 ---
 title: register_CTA_dataset
 parent: Package Functions
-nav_order: 10
+nav_order: 20
 ---
 
 # `register_CTA_dataset`

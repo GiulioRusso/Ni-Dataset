@@ -1,7 +1,7 @@
 ---
 title: extract_bounding_boxes_dataset
 parent: Package Functions
-nav_order: 19
+nav_order: 9
 ---
 
 # `extract_bounding_boxes_dataset`

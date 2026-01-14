@@ -1,7 +1,7 @@
 ---
 title: register_mask
 parent: Package Functions
-nav_order: 24
+nav_order: 23
 ---
 
 # `register_mask`
@@ -35,6 +35,9 @@ This is essential for:
 - Applying vessel masks, lesion masks, or ROI masks to registered volumes
 - Ensuring spatial consistency in multi-modal analyses
 - Creating population-based mask atlases
+
+<br><img src="../images/register-mask-1.png" width="100%"><br>
+<br><img src="../images/register-mask-2.png" width="100%"><br>
 
 ## Parameters
 

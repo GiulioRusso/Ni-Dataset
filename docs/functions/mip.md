@@ -1,7 +1,7 @@
 ---
 title: mip
 parent: Package Functions
-nav_order: 5
+nav_order: 17
 ---
 
 # `mip`
@@ -33,6 +33,8 @@ The technique is particularly valuable for:
 - Improving contrast-enhanced region visibility
 - Preprocessing for vessel detection and segmentation
 - Reducing noise while preserving peak intensities
+
+<br> <img src="../images/mip.png" width="100%"> <br>
 
 ## Parameters
 

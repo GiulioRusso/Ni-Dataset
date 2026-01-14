@@ -1,7 +1,7 @@
 ---
 title: draw_3D_boxes
 parent: Package Functions
-nav_order: 1
+nav_order: 6
 ---
 
 # `draw_3D_boxes`
@@ -29,6 +29,8 @@ Common use cases include:
 - Quality control of automated detection algorithms
 
 The output is saved as `<FILENAME>_boxes.nii.gz` and can be loaded in any NIfTI viewer for visualization.
+
+<br><img src="../images/draw-3D-boxes.png" width="100%"><br>
 
 ## Parameters
 

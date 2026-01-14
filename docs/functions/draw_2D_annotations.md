@@ -1,7 +1,7 @@
 ---
 title: draw_2D_annotations
 parent: Package Functions
-nav_order: 2
+nav_order: 5
 ---
 
 # `draw_2D_annotations`
@@ -22,8 +22,6 @@ draw_2D_annotations(
 
 This function visualizes 2D annotations by drawing them directly on images. It reads annotation coordinates from a CSV file and overlays them as yellow markers (circles, ellipses, or rectangles) on the input image. The function supports three annotation formats commonly used in medical imaging and object detection tasks.
 
-<br> <img src="../images/draw-1.png" width=100%> <br>
-
 **Supported annotation types**:
 1. **Center points**: Small circles marking point locations
 2. **Bounding boxes**: Rectangles defining object boundaries
@@ -35,6 +33,8 @@ This is useful for:
 - Verifying coordinate accuracy
 - Creating figures for presentations or papers
 - Debugging annotation extraction pipelines
+
+<br><img src="../images/draw-2D-annotation.png" width="100%"><br>
 
 ## Parameters
 

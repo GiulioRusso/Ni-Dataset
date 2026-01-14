@@ -1,7 +1,7 @@
 ---
 title: crop_and_pad
 parent: Package Functions
-nav_order: 22
+nav_order: 2
 ---
 
 # `crop_and_pad`
@@ -26,6 +26,8 @@ This function standardizes medical imaging volumes by removing empty space and e
 3. **Preserve orientation**: Maintains spatial alignment by updating the affine transformation matrix
 
 The output is saved with the suffix `_cropped_padded.nii.gz`.
+
+<br><img src="../images/crop-and-pad.png" width="100%"><br>
 
 ## Parameters
 
