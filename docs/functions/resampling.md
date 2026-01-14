@@ -1,7 +1,7 @@
 ---
 title: resampling
 parent: Package Functions
-nav_order: 7
+nav_order: 25
 ---
 
 # `resampling`
@@ -33,6 +33,9 @@ This is essential for:
 - Reducing computational requirements while preserving anatomy
 - Preparing data for fixed-size network inputs
 - Balancing detail and processing speed
+
+<br><img src="../images/resampled-1.png" width="100%"><br>
+<br><img src="../images/resampled-2.png" width="100%"><br>
 
 ## Parameters
 

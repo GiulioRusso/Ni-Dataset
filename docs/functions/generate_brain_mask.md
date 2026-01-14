@@ -1,7 +1,7 @@
 ---
 title: generate_brain_mask
 parent: Package Functions
-nav_order: 20
+nav_order: 15
 ---
 
 # `generate_brain_mask`

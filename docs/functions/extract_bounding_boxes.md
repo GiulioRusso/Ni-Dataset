@@ -1,7 +1,7 @@
 ---
 title: extract_bounding_boxes
 parent: Package Functions
-nav_order: 18
+nav_order: 10
 ---
 
 # `extract_bounding_boxes`
@@ -33,6 +33,8 @@ The output is useful for:
 - Creating simplified region representations
 - Removing small false positives from automated segmentations
 - Generating region proposals for detection tasks
+
+<br><img src="../images/extract-bounding-box.png" width="100%"><br>
 
 ## Parameters
 

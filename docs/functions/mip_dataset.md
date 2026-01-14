@@ -1,7 +1,7 @@
 ---
 title: mip_dataset
 parent: Package Functions
-nav_order: 6
+nav_order: 16
 ---
 
 # `mip_dataset`

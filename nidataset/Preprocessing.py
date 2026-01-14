@@ -684,7 +684,12 @@ def resampling(nii_path: str,
     image = sitk.ReadImage(nii_path)
     original_spacing = np.array(image.GetSpacing())
     original_size = np.array(image.GetSize())
-    
+    # get original intensity range
+    stats = sitk.StatisticsImageFilter()
+    stats.Execute(image)
+    orig_min = stats.GetMinimum()
+    orig_max = stats.GetMaximum()
+
     # compute new spacing to maintain the same field of view
     new_spacing = original_spacing * (original_size / np.array(desired_volume))
     
@@ -699,6 +704,13 @@ def resampling(nii_path: str,
         image.GetDirection(),
         0,
         image.GetPixelID()
+    )
+
+    # clip resampled values to original intensity range
+    resampled_img = sitk.Clamp(
+        resampled_img,
+        lowerBound=orig_min,
+        upperBound=orig_max
     )
     
     # extract filename prefix

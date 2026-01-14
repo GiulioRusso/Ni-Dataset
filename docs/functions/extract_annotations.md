@@ -1,7 +1,7 @@
 ---
 title: extract_annotations
 parent: Package Functions
-nav_order: 13
+nav_order: 8
 ---
 
 # `extract_annotations`
