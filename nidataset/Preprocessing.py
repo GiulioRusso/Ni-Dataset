@@ -1226,12 +1226,12 @@ def register_CTA_dataset(nii_folder: str,
     
     # iterate over nii.gz files with tqdm progress bar
     for nii_file in tqdm(nii_files, desc="Processing CTA files", unit="file"):
-        # paths for input files
-        nii_path = os.path.join(nii_folder, nii_file)
-        mask_path = os.path.join(mask_folder, nii_file)
-        
         # extract the filename prefix
         prefix = os.path.basename(nii_file).replace(".nii.gz", "")
+
+        # paths for input files
+        nii_path = os.path.join(nii_folder, nii_file)
+        mask_path = os.path.join(mask_folder, f"{prefix}_mask.nii.gz")
         
         # determine the appropriate output folder based on saving mode
         if saving_mode == "case":
@@ -1402,12 +1402,12 @@ def register_mask(mask_path: str,
 
 
 def register_mask_dataset(mask_folder: str,
-                         transform_folder: str,
-                         registered_folder: str,
-                         output_path: str,
-                         is_binary: bool = True,
-                         saving_mode: str = "case",
-                         debug: bool = False) -> None:
+                          transform_folder: str,
+                          registered_folder: str,
+                          output_path: str,
+                          is_binary: bool = True,
+                          saving_mode: str = "case",
+                          debug: bool = False) -> None:
     """
     Apply saved spatial transformations to all mask files in a dataset folder.
 
