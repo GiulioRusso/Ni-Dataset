@@ -51,11 +51,11 @@ This is particularly useful for:
 
 Each input volume generates an output mask:
 ```
-<PREFIX>_brain_mask.nii.gz
+<PREFIX>_mask.nii.gz
 ```
 where `<PREFIX>` is the original filename without the `.nii.gz` extension.
 
-**Example**: Input `scan_001.nii.gz` → Output `scan_001_brain_mask.nii.gz`
+**Example**: Input `scan_001.nii.gz` → Output `scan_001_mask.nii.gz`
 
 ### Output Mask Properties
 - **Data type**: Binary mask (0 for background, 1 for brain tissue)
@@ -119,7 +119,7 @@ generate_brain_mask_dataset(
     threshold=None,
     closing_radius=3
 )
-# Creates: dataset/brain_masks/<scan>_brain_mask.nii.gz for each scan
+# Creates: dataset/brain_masks/<scan>_mask.nii.gz for each scan
 ```
 
 ### Manual Thresholding
@@ -213,7 +213,7 @@ generate_brain_mask_dataset(
 
 # Verify a sample mask
 sample_scan = nib.load("qa/scans/sample.nii.gz")
-sample_mask = nib.load("qa/masks/sample_brain_mask.nii.gz")
+sample_mask = nib.load("qa/masks/sample_mask.nii.gz")
 
 scan_data = sample_scan.get_fdata()
 mask_data = sample_mask.get_fdata()
@@ -263,7 +263,7 @@ for i, thresh in enumerate(test_thresholds):
     )
     
     # Load and analyze result
-    mask = nib.load(f"{output_folder}/sample_brain_mask.nii.gz")
+    mask = nib.load(f"{output_folder}/sample_mask.nii.gz")
     mask_data = mask.get_fdata()
     coverage = np.sum(mask_data > 0) / np.prod(mask_data.shape) * 100
     
@@ -302,7 +302,7 @@ for scan_file in os.listdir(scan_folder):
         scan = nib.load(os.path.join(scan_folder, scan_file))
         scan_data = scan.get_fdata()
         
-        mask_file = scan_file.replace('.nii.gz', '_brain_mask.nii.gz')
+        mask_file = scan_file.replace('.nii.gz', '_mask.nii.gz')
         mask = nib.load(os.path.join(mask_folder, mask_file))
         mask_data = mask.get_fdata()
         
@@ -349,8 +349,8 @@ scan_files = [f for f in os.listdir("comparison/scans/") if f.endswith('.nii.gz'
 for scan_file in scan_files:
     prefix = scan_file.replace('.nii.gz', '')
     
-    auto_mask = nib.load(f"comparison/auto_masks/{prefix}_brain_mask.nii.gz")
-    manual_mask = nib.load(f"comparison/manual_masks/{prefix}_brain_mask.nii.gz")
+    auto_mask = nib.load(f"comparison/auto_masks/{prefix}_mask.nii.gz")
+    manual_mask = nib.load(f"comparison/manual_masks/{prefix}_mask.nii.gz")
     
     auto_data = auto_mask.get_fdata()
     manual_data = manual_mask.get_fdata()
@@ -424,7 +424,7 @@ generate_brain_mask_dataset(
 
 # Create overlay for visualization
 scan = nib.load("visualization/scans/example.nii.gz")
-mask = nib.load("visualization/masks/example_brain_mask.nii.gz")
+mask = nib.load("visualization/masks/example_mask.nii.gz")
 
 scan_data = scan.get_fdata()
 mask_data = mask.get_fdata()
@@ -464,7 +464,7 @@ generate_brain_mask_dataset(
 
 # 3. Verify a sample result
 sample_scan = nib.load("dataset/raw_scans/sample.nii.gz")
-sample_mask = nib.load("dataset/brain_masks/sample_brain_mask.nii.gz")
+sample_mask = nib.load("dataset/brain_masks/sample_mask.nii.gz")
 
 scan_data = sample_scan.get_fdata()
 mask_data = sample_mask.get_fdata()

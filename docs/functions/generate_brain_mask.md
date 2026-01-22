@@ -50,11 +50,11 @@ The result is a clean, connected binary mask suitable for skull stripping, regio
 
 The mask is saved as:
 ```
-<PREFIX>_brain_mask.nii.gz
+<PREFIX>_mask.nii.gz
 ```
 where `<PREFIX>` is the original filename without the `.nii.gz` extension.
 
-**Example**: Input `scan_001.nii.gz` → Output `scan_001_brain_mask.nii.gz`
+**Example**: Input `scan_001.nii.gz` → Output `scan_001_mask.nii.gz`
 
 ### Output Mask Properties
 - **Data type**: uint8 (8-bit unsigned integer)
@@ -164,7 +164,7 @@ generate_brain_mask(
     threshold=None,
     closing_radius=3
 )
-# Output: masks/patient_001_brain_mask.nii.gz
+# Output: masks/patient_001_mask.nii.gz
 ```
 
 ### With Debug Information
@@ -183,7 +183,7 @@ generate_brain_mask(
 # Adjusted range: (62.75, 251.00)
 # Input file: 'ct_scans/brain_scan.nii.gz'
 # Output path: 'brain_masks/'
-# Brain mask saved at: brain_masks/brain_scan_brain_mask.nii.gz
+# Brain mask saved at: brain_masks/brain_scan_mask.nii.gz
 ```
 
 ### Manual Thresholding
@@ -251,7 +251,7 @@ for i, thresh in enumerate(test_thresholds):
     )
     
     # Analyze result
-    mask = nib.load(f"{output_folder}/test_scan_brain_mask.nii.gz")
+    mask = nib.load(f"{output_folder}/test_scan_mask.nii.gz")
     mask_data = mask.get_fdata()
     
     brain_voxels = np.sum(mask_data > 0)
@@ -283,7 +283,7 @@ generate_brain_mask(
 
 # Load and verify
 scan = nib.load("qa/test_scan.nii.gz")
-mask = nib.load("qa/masks/test_scan_brain_mask.nii.gz")
+mask = nib.load("qa/masks/test_scan_mask.nii.gz")
 
 scan_data = scan.get_fdata()
 mask_data = mask.get_fdata()
@@ -337,7 +337,7 @@ generate_brain_mask(
 scan = nib.load(scan_file)
 scan_data = scan.get_fdata()
 
-mask = nib.load(f"{mask_output}/patient_042_brain_mask.nii.gz")
+mask = nib.load(f"{mask_output}/patient_042_mask.nii.gz")
 mask_data = mask.get_fdata()
 
 # Apply mask (skull stripping)
@@ -374,7 +374,7 @@ for radius in radii:
     )
     
     # Analyze smoothness (via surface area proxy)
-    mask = nib.load(f"{output_folder}/scan_brain_mask.nii.gz")
+    mask = nib.load(f"{output_folder}/scan_mask.nii.gz")
     mask_data = mask.get_fdata()
     
     # Count edge voxels
@@ -412,7 +412,7 @@ def preprocess_scan(input_path, output_path):
     scan_data = scan.get_fdata()
     
     filename = os.path.basename(input_path)
-    mask_file = filename.replace('.nii.gz', '_brain_mask.nii.gz')
+    mask_file = filename.replace('.nii.gz', '_mask.nii.gz')
     mask = nib.load(f"temp_masks/{mask_file}")
     mask_data = mask.get_fdata()
     
@@ -501,7 +501,7 @@ generate_brain_mask(
 scan = nib.load(scan_file)
 scan_data = scan.get_fdata()
 
-mask = nib.load("visualization/masks/scan_brain_mask.nii.gz")
+mask = nib.load("visualization/masks/scan_mask.nii.gz")
 mask_data = mask.get_fdata()
 
 # Create overlay with mask boundary highlighted
@@ -537,7 +537,7 @@ generate_brain_mask(
 )
 
 # 2. Verify mask quality
-mask = nib.load("data/masks/patient_scan_brain_mask.nii.gz")
+mask = nib.load("data/masks/patient_scan_mask.nii.gz")
 mask_data = mask.get_fdata()
 
 coverage = np.sum(mask_data > 0) / np.prod(mask_data.shape) * 100

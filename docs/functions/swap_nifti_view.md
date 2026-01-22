@@ -1,7 +1,7 @@
 ---
 title: swap_nifti_views
 parent: Package Functions
-nav_order: 28
+nav_order: 29
 ---
 
 # `swap_nifti_views`

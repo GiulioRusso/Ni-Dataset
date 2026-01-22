@@ -1,7 +1,7 @@
 ---
 title: register_mask_dataset
 parent: Package Functions
-nav_order: 22
+nav_order: 23
 ---
 
 # `register_mask_dataset`

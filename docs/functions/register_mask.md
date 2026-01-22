@@ -1,7 +1,7 @@
 ---
 title: register_mask
 parent: Package Functions
-nav_order: 23
+nav_order: 24
 ---
 
 # `register_mask`
