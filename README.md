@@ -92,6 +92,8 @@ This code will extract the slices and the annotations from a toy CTA and annotat
 
 Package documentation is available [here](https://giuliorusso.github.io/Ni-Dataset/).
 
+A complete project example that use `nidataset` is available [here](https://github.com/GiulioRusso/CT-manager)
+
 ## 🤝 Contribution
 👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
 

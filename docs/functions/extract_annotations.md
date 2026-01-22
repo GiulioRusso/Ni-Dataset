@@ -176,6 +176,20 @@ extract_annotations(..., target_size=(512, 512))
 - **Output Directory**: Automatically created if it doesn't exist
 - **Progress Display**: Shows progress bars for label and slice processing
 
+## Important Notes
+
+### Annotation Naming Convention
+- **All annotation files must end with `_bbox.nii.gz`**
+- This is enforced by the function's validation
+- Examples of valid names:
+  - `patient001_lesion_bbox.nii.gz`
+  - `case001_tumor_bbox.nii.gz`
+  - `vessel_roi_bbox.nii.gz`
+- Examples of invalid names:
+  - `patient001_lesion.nii.gz` (missing `_bbox`)
+  - `lesion.nii.gz` (missing `_bbox`)
+  - `bbox_lesion.nii.gz` (`_bbox` not at end before `.nii.gz`)
+
 ## Examples
 
 ### Basic Usage - Center Coordinates
@@ -185,7 +199,7 @@ Extract center points for each annotation per slice:
 from nidataset.slices import extract_annotations
 
 extract_annotations(
-    nii_path="annotations/lesion_mask.nii.gz",
+    nii_path="annotations/lesion_mask_bbox.nii.gz",
     output_path="labels/centers/",
     view="axial",
     saving_mode="slice",
@@ -199,7 +213,7 @@ Extract complete bounding box coordinates:
 
 ```python
 extract_annotations(
-    nii_path="masks/tumor_labels.nii.gz",
+    nii_path="masks/tumor_labels_bbox.nii.gz",
     output_path="labels/boxes/",
     view="coronal",
     saving_mode="slice",
@@ -214,7 +228,7 @@ Create single CSV with all annotations:
 
 ```python
 extract_annotations(
-    nii_path="segmentations/organs.nii.gz",
+    nii_path="segmentations/organs_bbox.nii.gz",
     output_path="volume_labels/",
     view="sagittal",
     saving_mode="volume",
@@ -229,7 +243,7 @@ Align annotations with padded images:
 
 ```python
 extract_annotations(
-    nii_path="annotations/detection_labels.nii.gz",
+    nii_path="annotations/detection_labels_bbox.nii.gz",
     output_path="aligned_labels/",
     view="axial",
     saving_mode="slice",
@@ -246,7 +260,7 @@ Extract center and radius for each annotation:
 
 ```python
 extract_annotations(
-    nii_path="masks/nodules.nii.gz",
+    nii_path="masks/nodules_bbox.nii.gz",
     output_path="nodule_params/",
     view="axial",
     saving_mode="volume",
@@ -263,7 +277,7 @@ Extract aligned images and annotations:
 from nidataset.slices import extract_slices, extract_annotations
 
 scan_file = "scans/patient_001.nii.gz"
-mask_file = "masks/patient_001_mask.nii.gz"
+mask_file = "masks/patient_001_mask_bbox.nii.gz"
 image_output = "dataset/images/"
 label_output = "dataset/labels/"
 
@@ -297,7 +311,7 @@ Extract annotations from all anatomical views:
 ```python
 from nidataset.slices import extract_annotations
 
-mask_file = "annotations/multi_view_mask.nii.gz"
+mask_file = "annotations/multi_view_mask_bbox.nii.gz"
 views = ["axial", "coronal", "sagittal"]
 
 for view in views:
@@ -320,7 +334,7 @@ from nidataset.slices import extract_annotations
 
 # Extract annotations
 extract_annotations(
-    nii_path="masks/test_mask.nii.gz",
+    nii_path="masks/test_mask_bbox.nii.gz",
     output_path="qa/labels/",
     view="axial",
     saving_mode="slice",
@@ -350,7 +364,7 @@ Extract in multiple data modes for different use cases:
 ```python
 from nidataset.slices import extract_annotations
 
-mask_file = "annotations/detections.nii.gz"
+mask_file = "annotations/detections_bbox.nii.gz"
 output_base = "converted_labels/"
 
 # Centers for point detection tasks
@@ -399,7 +413,7 @@ configs = {
 }
 
 for mask_type, config in configs.items():
-    mask_file = os.path.join(mask_folder, f"{mask_type}_mask.nii.gz")
+    mask_file = os.path.join(mask_folder, f"{mask_type}_mask_bbox.nii.gz")
     if os.path.exists(mask_file):
         extract_annotations(
             nii_path=mask_file,
@@ -421,7 +435,7 @@ from nidataset.slices import extract_annotations
 
 # Extract annotations
 extract_annotations(
-    nii_path="masks/dataset_mask.nii.gz",
+    nii_path="masks/dataset_mask_bbox.nii.gz",
     output_path="analysis/labels/",
     view="axial",
     saving_mode="slice",
@@ -459,7 +473,7 @@ from nidataset.slices import extract_annotations
 import pandas as pd
 
 # 1. Define input and output paths
-annotation_file = "data/segmentation_mask.nii.gz"
+annotation_file = "data/segmentation_mask_bbox.nii.gz"
 output_folder = "data/extracted_annotations/"
 
 # 2. Extract annotations with desired format

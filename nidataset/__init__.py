@@ -30,7 +30,8 @@ from .volume import (swap_nifti_views,
                      generate_brain_mask,
                      generate_brain_mask_dataset,
                      crop_and_pad,
-                     crop_and_pad_dataset)
+                     crop_and_pad_dataset,
+                     generate_heatmap_volume)
 
 from .utility import (dataset_images_info,
                       dataset_annotations_info)
@@ -64,5 +65,6 @@ __all__ = [
     "crop_and_pad",
     "crop_and_pad_dataset",
     "dataset_images_info",
-    "dataset_annotations_info"
+    "dataset_annotations_info",
+    "generate_heatmap_volume"
 ]

@@ -423,7 +423,7 @@ def generate_brain_mask(nii_path: str,
     """
     Generates a brain mask from a brain CTA scan in NIfTI format and saves the file as:
 
-        <PREFIX>_brain_mask.nii.gz
+        <PREFIX>_mask.nii.gz
 
     .. note::
        - If ``threshold`` is None, Otsu’s thresholding is used automatically.
@@ -528,7 +528,7 @@ def generate_brain_mask(nii_path: str,
     prefix = os.path.basename(nii_path).replace(".nii.gz", "")
 
     # save the new brain mask image
-    mask_filename = os.path.join(output_path, f"{prefix}_brain_mask.nii.gz")
+    mask_filename = os.path.join(output_path, f"{prefix}_mask.nii.gz")
     nib.save(brain_mask_nifti, mask_filename)
 
     # debug print
@@ -545,7 +545,7 @@ def generate_brain_mask_dataset(nii_folder: str,
     Generates brain masks for all brain CTA scans inside a dataset folder and
     saves each output as:
 
-        <PREFIX>_brain_mask.nii.gz
+        <PREFIX>_mask.nii.gz
 
     .. note::
        - All ``.nii.gz`` files in the folder are processed.
@@ -869,4 +869,215 @@ def crop_and_pad_dataset(nii_folder: str,
         print(f"\nCrop and pad statistics saved in: '{stats_file}'")
 
 
+def generate_heatmap_volume(nii_folder: str,
+                            output_path: str,
+                            output_filename: str = "heatmap_volume.nii.gz",
+                            use_mean: bool = True,
+                            clip_to_input_range: bool = True,
+                            normalize: bool = False,
+                            debug: bool = False) -> None:
+    """
+    Generates a synthetic heatmap volume by averaging or summing all NIfTI files in a folder.
+    The resulting volume represents the spatial probability/density across all inputs.
+    Saves:
 
+        <output_filename> (default: heatmap_volume.nii.gz)
+
+    .. note::
+       - All input volumes must have the same shape and spatial orientation.
+       - Values are averaged (default) or summed voxel-wise across all volumes.
+       - When using mean, output represents probability/frequency of occurrence.
+       - Output can be clipped to the original intensity range of input files.
+       - Optionally normalizes the output to [0, 1] range.
+       - Useful for creating probability maps, annotation overlays, or heat maps.
+       - Output directory is created if it does not exist.
+       - The affine matrix from the first file is used for the output.
+
+    :param nii_folder:
+        Path to the directory containing input NIfTI files (``.nii.gz``).
+
+    :param output_path:
+        Directory where the heatmap volume will be saved.
+
+    :param output_filename:
+        Name of the output heatmap file (default: ``"heatmap_volume.nii.gz"``).
+
+    :param use_mean:
+        If ``True`` (default), computes the mean across volumes, resulting in a 
+        probability/density map. If ``False``, sums all volumes instead.
+
+    :param clip_to_input_range:
+        If ``True``, clips the output values to match the min/max range found
+        across all input files. If ``False``, allows values to accumulate beyond
+        the original range.
+
+    :param normalize:
+        If ``True``, normalizes the output to [0, 1] range after mean/sum.
+        Applied after clipping if both are enabled.
+
+    :param debug:
+        If ``True``, prints detailed information about input files, value ranges,
+        and output statistics.
+
+    :raises FileNotFoundError:
+        If the folder does not exist or contains no ``.nii.gz`` files.
+
+    :raises ValueError:
+        If input volumes have mismatched shapes or if files cannot be loaded.
+
+    Example
+    -------
+    >>> from nidataset.volume import generate_heatmap_volume
+    >>>
+    >>> # Generate a probability heatmap from multiple brain masks (mean)
+    >>> generate_heatmap_volume(
+    ...     nii_folder="dataset/brain_masks/",
+    ...     output_path="output/heatmaps/",
+    ...     output_filename="brain_probability_map.nii.gz",
+    ...     use_mean=True,
+    ...     clip_to_input_range=True,
+    ...     normalize=False,
+    ...     debug=True
+    ... )
+    >>>
+    >>> # Generate a cumulative heatmap from bounding box annotations (sum)
+    >>> generate_heatmap_volume(
+    ...     nii_folder="output/bounding_boxes/",
+    ...     output_path="output/heatmaps/",
+    ...     output_filename="bbox_density_map.nii.gz",
+    ...     use_mean=False,
+    ...     clip_to_input_range=False,
+    ...     normalize=False,
+    ...     debug=True
+    ... )
+    """
+
+    # check if the input folder exists
+    if not os.path.isdir(nii_folder):
+        raise FileNotFoundError(f"Error: the input folder '{nii_folder}' does not exist.")
+
+    # get all .nii.gz files in the folder
+    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
+
+    # check if there are NIfTI files in the folder
+    if not nii_files:
+        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+
+    # create output directory if it does not exist
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # initialize variables for accumulation
+    accumulated_volume = None
+    reference_affine = None
+    reference_header = None
+    reference_shape = None
+    global_min = np.inf
+    global_max = -np.inf
+
+    # iterate over all NIfTI files with progress bar
+    for idx, nii_file in enumerate(tqdm(nii_files, desc="Loading and accumulating volumes", unit="file")):
+        # construct full file path
+        nii_path = os.path.join(nii_folder, nii_file)
+
+        try:
+            # load the NIfTI file
+            nii_img = nib.load(nii_path)
+            nii_data = nii_img.get_fdata()
+
+            # validate dimensions (must be 3D)
+            if nii_data.ndim != 3:
+                raise ValueError(f"Error: expected a 3D NIfTI file. File '{nii_file}' has shape {nii_data.shape}.")
+
+            # initialize accumulation volume with the first file
+            if accumulated_volume is None:
+                accumulated_volume = np.zeros_like(nii_data, dtype=np.float64)
+                reference_affine = nii_img.affine.copy()
+                reference_header = nii_img.header.copy()
+                reference_shape = nii_data.shape
+
+                if debug:
+                    print(f"\nReference volume: '{nii_file}'")
+                    print(f"Reference shape: {reference_shape}")
+
+            # check shape consistency
+            if nii_data.shape != reference_shape:
+                raise ValueError(
+                    f"Error: shape mismatch. Expected {reference_shape}, "
+                    f"but file '{nii_file}' has shape {nii_data.shape}."
+                )
+
+            # accumulate the volume
+            accumulated_volume += nii_data
+
+            # track global min and max for clipping
+            if clip_to_input_range:
+                file_min = np.min(nii_data)
+                file_max = np.max(nii_data)
+                global_min = min(global_min, file_min)
+                global_max = max(global_max, file_max)
+
+                if debug:
+                    print(f"File {idx+1}/{len(nii_files)}: '{nii_file}' | Range: [{file_min:.2f}, {file_max:.2f}]")
+
+        except Exception as e:
+            tqdm.write(f"Error processing file '{nii_file}': {e}")
+            raise ValueError(f"Failed to process file '{nii_file}': {e}")
+
+    # count total files processed
+    num_files = len(nii_files)
+
+    # apply mean or keep sum
+    if use_mean:
+        if debug:
+            print(f"\nComputing mean across {num_files} volumes...")
+        accumulated_volume = accumulated_volume / num_files
+    else:
+        if debug:
+            print(f"\nUsing sum of {num_files} volumes...")
+
+    # apply clipping if requested
+    if clip_to_input_range:
+        if debug:
+            print(f"Clipping output to input range: [{global_min:.2f}, {global_max:.2f}]")
+        accumulated_volume = np.clip(accumulated_volume, global_min, global_max)
+
+    # apply normalization if requested
+    if normalize:
+        min_val = np.min(accumulated_volume)
+        max_val = np.max(accumulated_volume)
+        if max_val > min_val:  # avoid division by zero
+            accumulated_volume = (accumulated_volume - min_val) / (max_val - min_val)
+            if debug:
+                print(f"Normalized output to [0, 1] range")
+        else:
+            if debug:
+                print("Skipping normalization (volume is constant)")
+
+    # create new NIfTI image with the accumulated heatmap
+    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32), 
+                                   reference_affine, 
+                                   header=reference_header)
+
+    # update header with correct data type
+    new_header = reference_header.copy()
+    new_header.set_data_dtype(np.float32)
+    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32), 
+                                   reference_affine, 
+                                   header=new_header)
+
+    # save the heatmap volume
+    output_file = os.path.join(output_path, output_filename)
+    nib.save(heatmap_img, output_file)
+
+    # debug print
+    if debug:
+        print(f"\nHeatmap generation complete:")
+        print(f"  Input folder: '{nii_folder}'")
+        print(f"  Output file: '{output_file}'")
+        print(f"  Total files processed: {len(nii_files)}")
+        print(f"  Aggregation method: {'Mean' if use_mean else 'Sum'}")
+        print(f"  Output shape: {accumulated_volume.shape}")
+        print(f"  Output value range: [{np.min(accumulated_volume):.2f}, {np.max(accumulated_volume):.2f}]")
+        print(f"  Clipping enabled: {clip_to_input_range}")
+        print(f"  Normalization enabled: {normalize}")

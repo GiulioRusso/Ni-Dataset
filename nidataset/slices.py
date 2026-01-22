@@ -458,7 +458,7 @@ def extract_annotations(nii_path: str,
         raise ValueError("Error: data_mode must be either 'center', 'box', or 'radius'.")
 
     # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = os.path.basename(nii_path).replace("_bbox.nii.gz", "")
 
     # calculate padding offsets if target_size is specified
     pad_offset_x = 0
