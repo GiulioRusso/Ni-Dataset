@@ -1,12 +1,25 @@
 import os
-from tqdm import tqdm
+import logging
+import tempfile
+import shutil
 import subprocess
+
 import nibabel as nib
 import numpy as np
 import SimpleITK as sitk
 from scipy.ndimage import gaussian_filter
-import tempfile
-import shutil
+from tqdm import tqdm
+
+from ._helpers import (
+    validate_nifti_path,
+    list_nifti_files,
+    ensure_dir,
+    strip_nifti_ext,
+    is_nifti,
+    validate_view,
+)
+
+logger = logging.getLogger("nidataset")
 
 
 def skull_CTA(nii_path: str,
@@ -14,7 +27,7 @@ def skull_CTA(nii_path: str,
               f_value: float = 0.1,
               clip_value: tuple = (0, 200),
               cleanup: bool = False,
-              debug: bool = False) -> None:
+              debug: bool = False) -> str:
     """
     Perform a CTA-specific skull-stripping pipeline on a single NIfTI file.
 
@@ -68,7 +81,7 @@ def skull_CTA(nii_path: str,
 
     Example
     -------
-    >>> from nidataset.Processing import skull_CTA
+    >>> from nidataset.preprocessing import skull_CTA
     >>>
     >>> skull_CTA(
     ...     nii_path="patient001_CTA.nii.gz",
@@ -80,24 +93,22 @@ def skull_CTA(nii_path: str,
     ... )
     """
 
-    # validate input path
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # ensure data type
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
+    # validate input path
+    validate_nifti_path(nii_path)
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # create a temporary directory without spaces for FSL processing
     temp_dir = tempfile.mkdtemp(prefix="fsl_", dir="/tmp")
 
     try:
         # build intermediate paths in temp directory (no spaces!)
-        base_name = os.path.basename(nii_path).replace(".nii.gz", "")
+        base_name = strip_nifti_ext(os.path.basename(nii_path))
         th_img = os.path.join(temp_dir, f"{base_name}_th.nii.gz")
         th_sm_img = os.path.join(temp_dir, f"{base_name}_th_sm.nii.gz")
         th_sm_th_img = os.path.join(temp_dir, f"{base_name}_th_sm_th.nii.gz")
@@ -109,40 +120,34 @@ def skull_CTA(nii_path: str,
         final_mask_img = os.path.join(output_path, f"{base_name}_skulled_mask.nii.gz")
         final_clipped_img = os.path.join(output_path, f"{base_name}_skulled_clipped.nii.gz")
 
-        if debug:
-            print(f"  - Using temporary directory: {temp_dir}")
+        logger.debug("  - Using temporary directory: %s", temp_dir)
 
         # step 2: intensity clipping and smoothing
         subprocess.run(["fslmaths", nii_path, "-thr", "0", "-uthr", "100", th_img],
                        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if debug:
-            print(f"  - Threshold [0-100]")
+        logger.debug("  - Threshold [0-100]")
 
         subprocess.run(["fslmaths", th_img, "-s", "1", th_sm_img],
                        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if debug:
-            print(f"  - Smoothing (sigma=1)")
+        logger.debug("  - Smoothing (sigma=1)")
 
         subprocess.run(["fslmaths", th_sm_img, "-thr", "0", "-uthr", "100", th_sm_th_img],
                        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if debug:
-            print("Step 2: Intensity thresholding and smoothing complete.")
+        logger.info("Step 2: Intensity thresholding and smoothing complete.")
 
         # step 3: BET skull stripping (creates skulled image + mask)
-        if debug:
-            print(f"Step 3: Running BET with f={f_value}...")
+        logger.info("Step 3: Running BET with f=%s...", f_value)
 
         result = subprocess.run([
             "bet", th_sm_th_img, skulled_img, "-R",
             "-f", str(f_value), "-g", "0", "-m"
         ], check=True, capture_output=True, text=True)
 
-        if debug:
-            if result.stdout:
-                print(f"  BET stdout: {result.stdout}")
-            if result.stderr:
-                print(f"  BET stderr: {result.stderr}")
-            print(f"Step 3: BET skull stripping complete.")
+        if result.stdout:
+            logger.debug("  BET stdout: %s", result.stdout)
+        if result.stderr:
+            logger.debug("  BET stderr: %s", result.stderr)
+        logger.info("Step 3: BET skull stripping complete.")
 
         # verify BET outputs
         if not os.path.exists(mask_img):
@@ -154,8 +159,7 @@ def skull_CTA(nii_path: str,
         subprocess.run(["fslmaths", nii_path, "-mul", mask_img, brain_img],
                        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        if debug:
-            print("Step 4: Brain mask applied to original CTA.")
+        logger.info("Step 4: Brain mask applied to original CTA.")
 
         # step 5: clip the final brain image
         nii_img = nib.load(brain_img)
@@ -164,15 +168,13 @@ def skull_CTA(nii_path: str,
         clipped_nii = nib.Nifti1Image(clipped_data, nii_img.affine, nii_img.header)
         nib.save(clipped_nii, final_clipped_img)
 
-        if debug:
-            print(f"Step 5: Final brain image clipped to range {clip_value}.")
+        logger.info("Step 5: Final brain image clipped to range %s.", clip_value)
 
         # copy mask to final output location
         shutil.copy2(mask_img, final_mask_img)
 
-        if debug:
-            print(f"\nSkull-stripped image saved at: '{final_clipped_img}'")
-            print(f"Skull mask saved at: '{final_mask_img}'")
+        logger.info("Skull-stripped image saved at: '%s'", final_clipped_img)
+        logger.info("Skull mask saved at: '%s'", final_mask_img)
 
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr if hasattr(e, 'stderr') and e.stderr else ""
@@ -188,7 +190,7 @@ def skull_CTA(nii_path: str,
         if os.path.exists(temp_dir):
             if not cleanup:
                 # if user wants to keep intermediates, move them to output_path
-                for file in os.listdir(temp_dir):
+                for file in sorted(os.listdir(temp_dir)):
                     src = os.path.join(temp_dir, file)
                     dst = os.path.join(output_path, file)
                     if os.path.isfile(src) and not os.path.exists(dst):
@@ -196,8 +198,10 @@ def skull_CTA(nii_path: str,
 
             # remove temp directory
             shutil.rmtree(temp_dir)
-            if debug and cleanup:
-                print("Temporary files removed.")
+            if cleanup:
+                logger.debug("Temporary files removed.")
+
+    return final_clipped_img
 
 
 def skull_CTA_dataset(nii_folder: str,
@@ -206,7 +210,7 @@ def skull_CTA_dataset(nii_folder: str,
                       clip_value: tuple = (0, 200),
                       cleanup: bool = False,
                       saving_mode: str = "case",
-                      debug: bool = False) -> None:
+                      debug: bool = False) -> list:
     """
     Apply a CTA-specific skull-stripping pipeline to all NIfTI files inside a folder.
 
@@ -247,9 +251,9 @@ def skull_CTA_dataset(nii_folder: str,
 
     :param saving_mode:
         Determines how outputs are organized:
-        
-        - ``"case"`` — creates one subfolder per input file (recommended for datasets).  
-        - ``"folder"`` — saves all skull-stripped images into ``skulled/`` subfolder 
+
+        - ``"case"`` — creates one subfolder per input file (recommended for datasets).
+        - ``"folder"`` — saves all skull-stripped images into ``skulled/`` subfolder
           and all masks into ``masks/`` subfolder. Temporary directories are kept
           if ``cleanup=False``.
 
@@ -265,7 +269,7 @@ def skull_CTA_dataset(nii_folder: str,
 
     Example
     -------
-    >>> from nidataset.Processing import skull_CTA_dataset
+    >>> from nidataset.preprocessing import skull_CTA_dataset
     >>>
     >>> skull_CTA_dataset(
     ...     nii_folder="./CTA_raw/",
@@ -278,42 +282,41 @@ def skull_CTA_dataset(nii_folder: str,
     ... )
     """
 
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # retrieve all .nii.gz files
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+    # retrieve all NIfTI files (sorted)
+    nii_files = list_nifti_files(nii_folder)
 
     # validate saving_mode
     if saving_mode not in ["case", "folder"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
 
     # create output dir if it does not exists
-    os.makedirs(output_path, exist_ok=True)
+    ensure_dir(output_path)
 
     # for "folder" mode, create subdirectories for skulled images and masks
     if saving_mode == "folder":
         skulled_dir = os.path.join(output_path, "skulled")
         masks_dir = os.path.join(output_path, "masks")
-        os.makedirs(skulled_dir, exist_ok=True)
-        os.makedirs(masks_dir, exist_ok=True)
+        ensure_dir(skulled_dir)
+        ensure_dir(masks_dir)
+
+    output_paths = []
 
     # process files with a progress bar
     for nii_file in tqdm(nii_files, desc="Skull-stripping NIfTI files", unit="file"):
         nii_path = os.path.join(nii_folder, nii_file)
-        prefix   = os.path.splitext(os.path.splitext(nii_file)[0])[0]  # remove .nii.gz
+        prefix = strip_nifti_ext(nii_file)
 
-        if debug:
-            print(f"Processing: {prefix}")
+        logger.info("Processing: %s", prefix)
 
         # if saving_mode = "case", create one subfolder for each file
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix)
-            os.makedirs(case_output_dir, exist_ok=True)
-            skull_CTA(
+            ensure_dir(case_output_dir)
+            result_path = skull_CTA(
                 nii_path=nii_path,
                 output_path=case_output_dir,
                 f_value=f_value,
@@ -321,12 +324,13 @@ def skull_CTA_dataset(nii_folder: str,
                 cleanup=cleanup,
                 debug=debug
             )
+            output_paths.append(result_path)
 
         else:  # saving_mode = "folder"
             # for folder mode, process to a temporary location
             temp_output_dir = os.path.join(output_path, f"_temp_{prefix}")
-            os.makedirs(temp_output_dir, exist_ok=True)
-            
+            ensure_dir(temp_output_dir)
+
             # process with cleanup=False to keep all files in temp directory
             skull_CTA(
                 nii_path=nii_path,
@@ -336,35 +340,38 @@ def skull_CTA_dataset(nii_folder: str,
                 cleanup=False,
                 debug=debug
             )
-            
+
             # move skull-stripped image to skulled folder
             src_skulled = os.path.join(temp_output_dir, f"{prefix}_skulled_clipped.nii.gz")
             dst_skulled = os.path.join(skulled_dir, f"{prefix}_skulled_clipped.nii.gz")
             if os.path.exists(src_skulled):
                 os.rename(src_skulled, dst_skulled)
-            
+
             # move mask to masks folder
             src_mask = os.path.join(temp_output_dir, f"{prefix}_skulled_mask.nii.gz")
             dst_mask = os.path.join(masks_dir, f"{prefix}_skulled_mask.nii.gz")
             if os.path.exists(src_mask):
                 os.rename(src_mask, dst_mask)
-            
+
             # if cleanup is True, remove the temporary directory
             if cleanup and os.path.exists(temp_output_dir):
                 # remove all files in temp directory
-                for file in os.listdir(temp_output_dir):
+                for file in sorted(os.listdir(temp_output_dir)):
                     os.remove(os.path.join(temp_output_dir, file))
                 os.rmdir(temp_output_dir)
 
-    if debug:
-        print(f"\nSkull-stripping completed for all files in '{nii_folder}'.")
+            output_paths.append(dst_skulled)
 
-    
+    logger.info("Skull-stripping completed for all files in '%s'.", nii_folder)
+
+    return output_paths
+
+
 def mip(nii_path: str,
         output_path: str,
         window_size: int = 10,
         view: str = "axial",
-        debug: bool = False) -> None:
+        debug: bool = False) -> str:
     """
     Generate a sliding-window Maximum Intensity Projection (MIP) from a 3D NIfTI volume.
 
@@ -397,9 +404,9 @@ def mip(nii_path: str,
     :param view:
         Anatomical orientation that defines the projection axis:
 
-        - ``"axial"``   → projection along the Z-axis (default)  
-        - ``"coronal"`` → projection along the Y-axis  
-        - ``"sagittal"``→ projection along the X-axis  
+        - ``"axial"``   → projection along the Z-axis (default)
+        - ``"coronal"`` → projection along the Y-axis
+        - ``"sagittal"``→ projection along the X-axis
 
     :param debug:
         If ``True``, prints progress information and the output filename.
@@ -424,17 +431,18 @@ def mip(nii_path: str,
     ... )
     """
 
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
+    # validate input path and extension
+    validate_nifti_path(nii_path)
+
+    # validate view parameter
+    validate_view(view)
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # load the NIfTI file
     nii_img = nib.load(nii_path)
@@ -447,12 +455,10 @@ def mip(nii_path: str,
 
     # define projection axis
     view_mapping = {"axial": 2, "coronal": 1, "sagittal": 0}
-    if view not in view_mapping:
-        raise ValueError("Error: axis must be 'axial', 'coronal', or 'sagittal'.")
     axis_index = view_mapping[view]
 
     # define prefix as the nii.gz filename
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
 
     # initialize MIP output volume
     mip_data = np.zeros_like(nii_data)
@@ -485,16 +491,17 @@ def mip(nii_path: str,
     mip_filename = os.path.join(output_path, f"{prefix}_mip_{view}.nii.gz")
     nib.save(mip_image, mip_filename)
 
-    if debug:
-        print(f"\nMIP saved at: {mip_filename}")
+    logger.info("MIP saved at: %s", mip_filename)
+
+    return mip_filename
 
 
-def mip_dataset(nii_folder: str, 
-                output_path: str, 
-                window_size: int = 10, 
+def mip_dataset(nii_folder: str,
+                output_path: str,
+                window_size: int = 10,
                 view: str = "axial",
-                saving_mode: str = "case", 
-                debug: bool = False) -> None:
+                saving_mode: str = "case",
+                debug: bool = False) -> list:
     """
     Generate sliding-window Maximum Intensity Projections (MIP) for all NIfTI
     volumes contained in a dataset directory.
@@ -529,9 +536,9 @@ def mip_dataset(nii_folder: str,
     :param view:
         Anatomical orientation that defines the projection axis:
 
-        - ``"axial"``   → projection along the Z-axis (default)  
-        - ``"coronal"`` → projection along the Y-axis  
-        - ``"sagittal"``→ projection along the X-axis  
+        - ``"axial"``   → projection along the Z-axis (default)
+        - ``"coronal"`` → projection along the Y-axis
+        - ``"sagittal"``→ projection along the X-axis
 
     :param saving_mode:
         Defines how output files are structured:
@@ -562,31 +569,27 @@ def mip_dataset(nii_folder: str,
     ... )
     """
 
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # get all .nii.gz files in the dataset folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-
-    # check if there are NIfTI files in the dataset folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+    # get all NIfTI files in the dataset folder (sorted)
+    nii_files = list_nifti_files(nii_folder)
 
     # validate input parameters
-    if view not in ["axial", "coronal", "sagittal"]:
-        raise ValueError("Error: view must be 'axial', 'coronal', or 'sagittal'.")
+    validate_view(view)
     if saving_mode not in ["case", "view"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'view'.")
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # create a single folder for the chosen view if using "view" mode
     if saving_mode == "view":
         view_output_dir = os.path.join(output_path, view)
-        os.makedirs(view_output_dir, exist_ok=True)
+        ensure_dir(view_output_dir)
+
+    output_paths = []
 
     # iterate over nii.gz files with tqdm progress bar
     for nii_file in tqdm(nii_files, desc="Processing NIfTI files", unit="file"):
@@ -594,7 +597,7 @@ def mip_dataset(nii_folder: str,
         nii_path = os.path.join(nii_folder, nii_file)
 
         # extract the filename prefix (case ID)
-        prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+        prefix = strip_nifti_ext(os.path.basename(nii_path))
 
         # update tqdm description with the current file prefix
         tqdm.write(f"Processing: {prefix}")
@@ -602,19 +605,22 @@ def mip_dataset(nii_folder: str,
         # determine the appropriate output folder
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix, view)
-            os.makedirs(case_output_dir, exist_ok=True)
-            mip(nii_path, case_output_dir, window_size, view, debug=False)
+            ensure_dir(case_output_dir)
+            result_path = mip(nii_path, case_output_dir, window_size, view, debug=False)
         else:
-            mip(nii_path, view_output_dir, window_size, view, debug=False)
+            result_path = mip(nii_path, view_output_dir, window_size, view, debug=False)
 
-    if debug:
-        print(f"\nMIP processing completed for all files in '{nii_folder}'")
+        output_paths.append(result_path)
+
+    logger.info("MIP processing completed for all files in '%s'", nii_folder)
+
+    return output_paths
 
 
 def resampling(nii_path: str,
                output_path: str,
                desired_volume: tuple,
-               debug: bool = False) -> None:
+               debug: bool = False) -> str:
     """
     Resample a 3D NIfTI volume to a target spatial size while preserving its
     physical field of view.
@@ -664,22 +670,20 @@ def resampling(nii_path: str,
     ... )
     """
 
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
-    
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
-    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
+    # validate input path and extension
+    validate_nifti_path(nii_path)
+
     # ensure tuple has three values
     if len(desired_volume) != 3:
         raise ValueError(f"Error: invalid desired_volume value. Expected three values. Got '{len(desired_volume)}' instead.")
 
     # create output dir if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    
+    ensure_dir(output_path)
+
     # load the NIfTI file
     image = sitk.ReadImage(nii_path)
     original_spacing = np.array(image.GetSpacing())
@@ -692,7 +696,7 @@ def resampling(nii_path: str,
 
     # compute new spacing to maintain the same field of view
     new_spacing = original_spacing * (original_size / np.array(desired_volume))
-    
+
     # create resampling filter
     resampled_img = sitk.Resample(
         image,
@@ -712,23 +716,24 @@ def resampling(nii_path: str,
         lowerBound=orig_min,
         upperBound=orig_max
     )
-    
+
     # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
     resampled_filename = os.path.join(output_path, f"{prefix}_resampled.nii.gz")
-    
+
     # save the resampled image
     sitk.WriteImage(resampled_img, resampled_filename)
-    
-    if debug:
-        print(f"\nResampled image saved at: '{resampled_filename}'")
+
+    logger.info("Resampled image saved at: '%s'", resampled_filename)
+
+    return resampled_filename
 
 
 def resampling_dataset(nii_folder: str,
                        output_path: str,
                        desired_volume: tuple,
                        saving_mode: str = "case",
-                       debug: bool = False) -> None:
+                       debug: bool = False) -> list:
     """
     Resample all 3D NIfTI files inside a dataset folder to a target volume size.
     The resampled images preserve the original field of view by computing a new
@@ -754,7 +759,7 @@ def resampling_dataset(nii_folder: str,
         exactly three integers.
 
     :param saving_mode:
-        ``"case"`` → creates a dedicated subfolder for each image  
+        ``"case"`` → creates a dedicated subfolder for each image
         ``"folder"`` → saves all resampled images into a single directory
 
     :param debug:
@@ -781,47 +786,47 @@ def resampling_dataset(nii_folder: str,
     ... )
     """
 
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
-    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
     # ensure tuple has three values
     if len(desired_volume) != 3:
         raise ValueError(f"Error: invalid desired_volume value. Expected three values. Got '{len(desired_volume)}' instead.")
-    
-    # get all .nii.gz files in the dataset folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-    
-    # check if there are NIfTI files in the dataset folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
-    
+
+    # get all NIfTI files in the dataset folder (sorted)
+    nii_files = list_nifti_files(nii_folder)
+
     # validate saving_mode
     if saving_mode not in ["case", "folder"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
-    
+
     # create output dir if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    
+    ensure_dir(output_path)
+
+    output_paths = []
+
     # iterate over nii.gz files with tqdm progress bar
     for nii_file in tqdm(nii_files, desc="Processing NIfTI files", unit="file"):
         # nii.gz file path
         nii_path = os.path.join(nii_folder, nii_file)
-        
+
         # extract the filename prefix
-        prefix = os.path.basename(nii_path).replace(".nii.gz", "")
-        
+        prefix = strip_nifti_ext(os.path.basename(nii_path))
+
         # determine the appropriate output folder
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix)
-            os.makedirs(case_output_dir, exist_ok=True)
-            resampling(nii_path, case_output_dir, desired_volume, debug=False)
+            ensure_dir(case_output_dir)
+            result_path = resampling(nii_path, case_output_dir, desired_volume, debug=False)
         else:
-            resampling(nii_path, output_path, desired_volume, debug=False)
-    
-    if debug:
-        print(f"\nResampling completed for all files in '{nii_folder}'")
+            result_path = resampling(nii_path, output_path, desired_volume, debug=False)
+
+        output_paths.append(result_path)
+
+    logger.info("Resampling completed for all files in '%s'", nii_folder)
+
+    return output_paths
 
 
 def register_CTA(nii_path: str,
@@ -838,7 +843,7 @@ def register_CTA(nii_path: str,
                  sigma_first: float = 2.0,
                  sigma_second: float = 3.0,
                  metric_sampling_percentage: float = 0.5,
-                 initial_transform = None) -> None:
+                 initial_transform = None) -> str:
     """
     Registers a CTA volume to a reference template using Mutual Information.
     The pipeline applies Gaussian-based preprocessing on the CTA, loads the
@@ -849,7 +854,7 @@ def register_CTA(nii_path: str,
         <PREFIX>_transformation.tfm
 
     .. note::
-       - The registration uses a configurable initializer (MOMENTS or GEOMETRY), 
+       - The registration uses a configurable initializer (MOMENTS or GEOMETRY),
          Mattes Mutual Information, and Gradient Descent optimization.
        - The CTA undergoes low/high-intensity suppression and two sequential
          Gaussian smoothings before registration.
@@ -868,7 +873,7 @@ def register_CTA(nii_path: str,
         Path to the template mask, used as the fixed-image mask.
 
     :param output_path:
-        Directory where all output files will be saved (registered CTA, 
+        Directory where all output files will be saved (registered CTA,
         transformation, and temporary filtered CTA). Created if it does not exist.
 
     :param cleanup:
@@ -892,10 +897,10 @@ def register_CTA(nii_path: str,
 
     :param initialization_strategy:
         Strategy for initializing the transformation. Options:
-        
-        - ``sitk.CenteredTransformInitializerFilter.MOMENTS`` (default) — 
+
+        - ``sitk.CenteredTransformInitializerFilter.MOMENTS`` (default) —
           align based on image moments (center of mass)
-        - ``sitk.CenteredTransformInitializerFilter.GEOMETRY`` — 
+        - ``sitk.CenteredTransformInitializerFilter.GEOMETRY`` —
           align based on image geometry (center and orientation)
 
     :param sigma_first:
@@ -911,7 +916,7 @@ def register_CTA(nii_path: str,
         Default: 0.5 (50%).
 
     :param initial_transform:
-        Initial transformation object. If ``None``, defaults to 
+        Initial transformation object. If ``None``, defaults to
         ``sitk.Euler3DTransform()``. Can be any SimpleITK transform type
         (e.g., ``sitk.Euler3DTransform()``, ``sitk.AffineTransform(3)``).
 
@@ -951,98 +956,102 @@ def register_CTA(nii_path: str,
     ... )
     """
 
-    # check if input files exist
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
+    # check if input files exist and validate NIfTI path
     for file_path in [nii_path, mask_path, template_path, template_mask_path]:
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"Error: the input file '{file_path}' does not exist.")
-    
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
-    
+
+    # ensure the file is a valid NIfTI file
+    validate_nifti_path(nii_path)
+
     # create output directory if it does not exist
-    os.makedirs(output_path, exist_ok=True)
-    
+    ensure_dir(output_path)
+
     # extract case number
-    prefix = os.path.basename(nii_path).split('.nii.gz')[0]
-    
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
+
     # paths for saving outputs
     transformation_path = os.path.join(output_path, f'{prefix}_transformation.tfm')
     registered_folder = os.path.join(output_path, f'{prefix}_registered.nii.gz')
-    
+
     # load CTA image
     image = nib.load(nii_path).get_fdata().astype(np.float32)
-    
+
     # apply preprocessing steps
     image[image < 0] = 0  # remove negative values
     image = gaussian_filter(image, sigma=sigma_first)  # first Gaussian filter
     image[image > 95] = 0  # remove high-intensity values
     image = gaussian_filter(image, sigma=sigma_second)  # second Gaussian filter
-    
+
     # save preprocessed CTA
     image_gaussian_path = os.path.join(output_path, f"{prefix}_gaussian_filtered.nii.gz")
     nib.save(nib.Nifti1Image(image, nib.load(nii_path).affine), image_gaussian_path)
-    
+
     # load images for registration
     image_gaussian = sitk.ReadImage(image_gaussian_path, sitk.sitkFloat32)
     template = sitk.ReadImage(template_path, sitk.sitkFloat32)
     template_mask = sitk.ReadImage(template_mask_path, sitk.sitkFloat32)
     mask = sitk.ReadImage(mask_path, sitk.sitkFloat32)
-    
+
     # ensure input CTA has the same pixel type as the template
     image_gaussian = sitk.Cast(image_gaussian, template.GetPixelID())
-    
+
     # clip intensity values in CTA (0 to 100)
     image_gaussian = sitk.Clamp(image_gaussian, lowerBound=0, upperBound=100, outputPixelType=image_gaussian.GetPixelID())
-    
+
     # registration method
     registration_method = sitk.ImageRegistrationMethod()
-    
+
     # set initial transform type (default to Euler3DTransform if None)
     if initial_transform is None:
         initial_transform = sitk.Euler3DTransform()
-    
+
     # initialize transformation based on selected strategy
     initial_transform = sitk.CenteredTransformInitializer(
         template_mask, mask, initial_transform, initialization_strategy
     )
     registration_method.SetInitialTransform(initial_transform, inPlace=False)
-    
+
     # set metric as Mutual Information
     registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=number_histogram_bins)
     registration_method.SetMetricMovingMask(mask)
     registration_method.SetMetricFixedMask(template_mask)
     registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
     registration_method.SetMetricSamplingPercentage(metric_sampling_percentage)
-    
+
     # interpolation method
     registration_method.SetInterpolator(sitk.sitkLinear)
-    
+
     # optimizer settings
     registration_method.SetOptimizerAsGradientDescent(
-        learningRate=learning_rate, 
-        numberOfIterations=number_iterations, 
+        learningRate=learning_rate,
+        numberOfIterations=number_iterations,
         estimateLearningRate=registration_method.Once
     )
     registration_method.SetOptimizerScalesFromPhysicalShift()
-    
+
     # perform the registration
     transformation = registration_method.Execute(template, image_gaussian)
-    
+
     # save the registered images
     image_registered = sitk.Resample(sitk.ReadImage(nii_path), template, transformation, sitk.sitkLinear, 0.0)
     sitk.WriteImage(image_registered, registered_folder)
-    
+
     # save the transformation
     sitk.WriteTransform(transformation, transformation_path)
-    
+
     # delete the temporary gaussian image if cleanup is True
     if cleanup and os.path.exists(image_gaussian_path):
         os.remove(image_gaussian_path)
-    
-    if debug:
-        print(f"\nRegistered image saved at: '{registered_folder}'.")
-        print(f"Transformation file saved at: '{transformation_path}'.")
+
+    logger.info("Registered image saved at: '%s'.", registered_folder)
+    logger.info("Transformation file saved at: '%s'.", transformation_path)
+
+    return registered_folder
 
 
 def register_CTA_dataset(nii_folder: str,
@@ -1060,10 +1069,10 @@ def register_CTA_dataset(nii_folder: str,
                          sigma_first: float = 2.0,
                          sigma_second: float = 3.0,
                          metric_sampling_percentage: float = 0.5,
-                         initial_transform = None) -> None:
+                         initial_transform = None) -> list:
     """
-    Registers all CTA images in a dataset folder to a reference template using 
-    mutual information-based registration. Each CTA volume is preprocessed 
+    Registers all CTA images in a dataset folder to a reference template using
+    mutual information-based registration. Each CTA volume is preprocessed
     with Gaussian filtering, masked, and aligned to the template. Saves:
 
         <PREFIX>_registered.nii.gz
@@ -1071,15 +1080,15 @@ def register_CTA_dataset(nii_folder: str,
         <PREFIX>_transformation.tfm
 
     .. note::
-       - Each CTA is filtered to remove negative and extreme high-intensity 
+       - Each CTA is filtered to remove negative and extreme high-intensity
          values before registration.
-       - The registration uses a configurable initializer (MOMENTS or GEOMETRY), 
+       - The registration uses a configurable initializer (MOMENTS or GEOMETRY),
          Mattes Mutual Information metric, and Gradient Descent optimization.
        - The masks constrain the metric to the brain region.
-       - If ``saving_mode`` is "case", each case will have its own subfolder 
+       - If ``saving_mode`` is "case", each case will have its own subfolder
          containing the registered image and transformation.
-       - If ``saving_mode`` is "folder", all registered images will be saved in 
-         ``output_path/registered/`` and all transformations in 
+       - If ``saving_mode`` is "folder", all registered images will be saved in
+         ``output_path/registered/`` and all transformations in
          ``output_path/transforms/``.
        - If ``cleanup`` is True, intermediate Gaussian-filtered images are removed.
        - In folder mode with ``cleanup=False``, temporary directories containing
@@ -1100,17 +1109,17 @@ def register_CTA_dataset(nii_folder: str,
 
     :param output_path:
         Base directory for all outputs. Created if missing.
-        
+
         - If ``saving_mode="case"``: creates ``output_path/<PREFIX>/`` for each case
-        - If ``saving_mode="folder"``: creates ``output_path/registered/`` and 
+        - If ``saving_mode="folder"``: creates ``output_path/registered/`` and
           ``output_path/transforms/`` subdirectories
 
     :param saving_mode:
         Defines how outputs are organized:
 
-        - ``"case"`` — one subfolder per input file with both registered image 
-          and transformation (recommended for datasets).  
-        - ``"folder"`` — all registered images saved into ``registered/`` subfolder 
+        - ``"case"`` — one subfolder per input file with both registered image
+          and transformation (recommended for datasets).
+        - ``"folder"`` — all registered images saved into ``registered/`` subfolder
           and all transformations saved into ``transforms/`` subfolder. Temporary
           directories are kept if ``cleanup=False``.
 
@@ -1136,10 +1145,10 @@ def register_CTA_dataset(nii_folder: str,
 
     :param initialization_strategy:
         Strategy for initializing the transformation. Options:
-        
-        - ``sitk.CenteredTransformInitializerFilter.MOMENTS`` (default) — 
+
+        - ``sitk.CenteredTransformInitializerFilter.MOMENTS`` (default) —
           align based on image moments (center of mass)
-        - ``sitk.CenteredTransformInitializerFilter.GEOMETRY`` — 
+        - ``sitk.CenteredTransformInitializerFilter.GEOMETRY`` —
           align based on image geometry (center and orientation)
 
     :param sigma_first:
@@ -1155,7 +1164,7 @@ def register_CTA_dataset(nii_folder: str,
         Default: 0.5 (50%).
 
     :param initial_transform:
-        Initial transformation object. If ``None``, defaults to 
+        Initial transformation object. If ``None``, defaults to
         ``sitk.Euler3DTransform()``. Can be any SimpleITK transform type
         (e.g., ``sitk.Euler3DTransform()``, ``sitk.AffineTransform(3)``).
 
@@ -1200,81 +1209,83 @@ def register_CTA_dataset(nii_folder: str,
     ... )
     """
 
-    # check if dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
-    
-    # get all .nii.gz files in the dataset folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-    
-    # check if there are NIfTI files in the dataset folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
-    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
+    # get all NIfTI files in the dataset folder (sorted)
+    nii_files = list_nifti_files(nii_folder)
+
     # validate saving_mode
     if saving_mode not in ["case", "folder"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
-    
+
     # create output directories based on saving mode
-    os.makedirs(output_path, exist_ok=True)
-    
+    ensure_dir(output_path)
+
     if saving_mode == "folder":
         registered_dir = os.path.join(output_path, "registered")
         transforms_dir = os.path.join(output_path, "transforms")
-        os.makedirs(registered_dir, exist_ok=True)
-        os.makedirs(transforms_dir, exist_ok=True)
-    
+        ensure_dir(registered_dir)
+        ensure_dir(transforms_dir)
+
+    output_paths = []
+
     # iterate over nii.gz files with tqdm progress bar
     for nii_file in tqdm(nii_files, desc="Processing CTA files", unit="file"):
         # extract the filename prefix
-        prefix = os.path.basename(nii_file).replace(".nii.gz", "")
+        prefix = strip_nifti_ext(os.path.basename(nii_file))
 
         # paths for input files
         nii_path = os.path.join(nii_folder, nii_file)
         mask_path = os.path.join(mask_folder, f"{prefix}_mask.nii.gz")
-        
+
         # determine the appropriate output folder based on saving mode
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix)
-            os.makedirs(case_output_dir, exist_ok=True)
+            ensure_dir(case_output_dir)
 
-            register_CTA(nii_path, mask_path, template_path, template_mask_path,
+            result_path = register_CTA(nii_path, mask_path, template_path, template_mask_path,
                          case_output_dir, cleanup, debug,
                          number_histogram_bins, learning_rate, number_iterations,
                          initialization_strategy, sigma_first, sigma_second,
                          metric_sampling_percentage, initial_transform)
+            output_paths.append(result_path)
         else:  # saving_mode == "folder"
             # for folder mode, register to a temporary location
             temp_output_dir = os.path.join(output_path, f"_temp_{prefix}")
-            os.makedirs(temp_output_dir, exist_ok=True)
-            
+            ensure_dir(temp_output_dir)
+
             register_CTA(nii_path, mask_path, template_path, template_mask_path,
                          temp_output_dir, cleanup, debug,
                          number_histogram_bins, learning_rate, number_iterations,
                          initialization_strategy, sigma_first, sigma_second,
                          metric_sampling_percentage, initial_transform)
-            
+
             # move registered image to registered folder
             src_registered = os.path.join(temp_output_dir, f"{prefix}_registered.nii.gz")
             dst_registered = os.path.join(registered_dir, f"{prefix}_registered.nii.gz")
             if os.path.exists(src_registered):
                 os.rename(src_registered, dst_registered)
-            
+
             # move transformation to transforms folder
             src_transform = os.path.join(temp_output_dir, f"{prefix}_transformation.tfm")
             dst_transform = os.path.join(transforms_dir, f"{prefix}_transformation.tfm")
             if os.path.exists(src_transform):
                 os.rename(src_transform, dst_transform)
-            
+
             # if cleanup is True, remove the temporary directory
             if cleanup and os.path.exists(temp_output_dir):
                 # remove all files in temp directory
-                for file in os.listdir(temp_output_dir):
+                for file in sorted(os.listdir(temp_output_dir)):
                     os.remove(os.path.join(temp_output_dir, file))
                 os.rmdir(temp_output_dir)
-    
-    if debug:
-        print(f"\nRegistration completed for all files in '{nii_folder}'.")
+
+            output_paths.append(dst_registered)
+
+    logger.info("Registration completed for all files in '%s'.", nii_folder)
+
+    return output_paths
 
 
 def register_mask(mask_path: str,
@@ -1282,7 +1293,7 @@ def register_mask(mask_path: str,
                   registered_path: str,
                   output_path: str,
                   is_binary: bool = True,
-                  debug: bool = False) -> None:
+                  debug: bool = False) -> str:
     """
     Apply a saved spatial transformation to a mask using a registered image
     as reference.
@@ -1355,35 +1366,39 @@ def register_mask(mask_path: str,
     ... )
     """
 
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
     # check if input files exist
     for file_path in [mask_path, transform_path, registered_path]:
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"Error: the input file '{file_path}' does not exist.")
-    
-    # ensure the mask is a .nii.gz file
+
+    # ensure the mask is a _mask.nii.gz file
     if not mask_path.endswith("_mask.nii.gz"):
         raise ValueError(f"Error: invalid file format. Expected a '_mask.nii.gz' file. Got '{mask_path}' instead.")
-    
+
     # create output directory if it does not exist
     output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-    
+    if output_dir:
+        ensure_dir(output_dir)
+
     # load the input mask
     mask = sitk.ReadImage(mask_path, sitk.sitkFloat32)
-    
+
     # load the reference image (defines target space)
     reference_image = sitk.ReadImage(registered_path, sitk.sitkFloat32)
-    
+
     # load the saved transformation
     transformation = sitk.ReadTransform(transform_path)
-    
+
     # choose interpolation method based on mask type
     if is_binary:
         interpolator = sitk.sitkNearestNeighbor
     else:
         interpolator = sitk.sitkLinear
-    
+
     # apply the transformation
     registered_mask = sitk.Resample(
         mask,
@@ -1393,12 +1408,13 @@ def register_mask(mask_path: str,
         0.0,
         mask.GetPixelID()
     )
-    
+
     # save the transformed mask
     sitk.WriteImage(registered_mask, output_path)
-    
-    if debug:
-        print(f"\nRegistered mask saved at: '{output_path}'.")
+
+    logger.info("Registered mask saved at: '%s'.", output_path)
+
+    return output_path
 
 
 def register_mask_dataset(mask_folder: str,
@@ -1407,7 +1423,7 @@ def register_mask_dataset(mask_folder: str,
                           output_path: str,
                           is_binary: bool = True,
                           saving_mode: str = "case",
-                          debug: bool = False) -> None:
+                          debug: bool = False) -> list:
     """
     Apply saved spatial transformations to all mask files in a dataset folder.
 
@@ -1517,64 +1533,60 @@ def register_mask_dataset(mask_folder: str,
     ... )
     """
 
-    # check if mask folder exists
-    if not os.path.isdir(mask_folder):
-        raise FileNotFoundError(f"Error: the mask folder '{mask_folder}' does not exist.")
-    
-    # get all .nii.gz files in the mask folder
-    mask_files = [f for f in os.listdir(mask_folder) if f.endswith(".nii.gz")]
-    
-    # check if there are mask files
-    if not mask_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{mask_folder}'.")
-    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
+    # get all NIfTI files in the mask folder (sorted)
+    mask_files = list_nifti_files(mask_folder)
+
     # validate saving_mode
     if saving_mode not in ["case", "folder"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
-    
+
     # create output directory
-    os.makedirs(output_path, exist_ok=True)
-    
+    ensure_dir(output_path)
+
+    output_paths = []
+
     # iterate over mask files with progress bar
     for mask_file in tqdm(mask_files, desc="Processing masks", unit="mask"):
         # extract the filename prefix
-        prefix = os.path.basename(mask_file).replace("_mask.nii.gz", "")
-        
+        prefix = strip_nifti_ext(os.path.basename(mask_file)).replace("_mask", "")
+
         # construct mask path
         mask_path = os.path.join(mask_folder, mask_file)
-        
+
         # find transformation and reference files based on saving mode
         if saving_mode == "case":
             # search in case subdirectories: transform_folder/<PREFIX>/
             transform_file = os.path.join(transform_folder, prefix, f"{prefix}_transformation.tfm")
             registered_file = os.path.join(registered_folder, prefix, f"{prefix}_registered.nii.gz")
-            
+
         else:  # saving_mode == "folder"
             # search directly in folders by prefix matching
             transform_file = os.path.join(transform_folder, f"{prefix}_transformation.tfm")
             registered_file = os.path.join(registered_folder, f"{prefix}_registered.nii.gz")
-        
+
         # check if files exist
         if not os.path.exists(transform_file):
-            if debug:
-                print(f"\nWarning: Transformation file not found at '{transform_file}', skipping...")
+            logger.warning("Transformation file not found at '%s', skipping...", transform_file)
             continue
-        
+
         if not os.path.exists(registered_file):
-            if debug:
-                print(f"\nWarning: Reference image not found at '{registered_file}', skipping...")
+            logger.warning("Reference image not found at '%s', skipping...", registered_file)
             continue
-        
+
         # determine output path based on saving mode
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix)
-            os.makedirs(case_output_dir, exist_ok=True)
+            ensure_dir(case_output_dir)
             output_file = os.path.join(case_output_dir, f"{prefix}_registered_mask.nii.gz")
         else:
             output_file = os.path.join(output_path, f"{prefix}_registered_mask.nii.gz")
-        
+
         # register the mask
-        register_mask(
+        result_path = register_mask(
             mask_path=mask_path,
             transform_path=transform_file,
             registered_path=registered_file,
@@ -1582,9 +1594,11 @@ def register_mask_dataset(mask_folder: str,
             is_binary=is_binary,
             debug=debug
         )
-    
-    if debug:
-        print(f"\nMask registration completed for all files in '{mask_folder}'.")
+        output_paths.append(result_path)
+
+    logger.info("Mask registration completed for all files in '%s'.", mask_folder)
+
+    return output_paths
 
 
 def register_annotation(annotation_path: str,
@@ -1592,7 +1606,7 @@ def register_annotation(annotation_path: str,
                        registered_path: str,
                        output_path: str,
                        recalculate_bbox: bool = True,
-                       debug: bool = False) -> None:
+                       debug: bool = False) -> str:
     """
     Apply a saved spatial transformation to an annotation and optionally
     recalculate a tight axis-aligned bounding box.
@@ -1679,29 +1693,33 @@ def register_annotation(annotation_path: str,
     ... )
     """
 
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
     # check if input files exist
     for file_path in [annotation_path, transform_path, registered_path]:
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"Error: the input file '{file_path}' does not exist.")
-    
-    # ensure the annotation is a .nii.gz file
+
+    # ensure the annotation is a _bbox.nii.gz file
     if not annotation_path.endswith("_bbox.nii.gz"):
         raise ValueError(f"Error: invalid file format. Expected a '_bbox.nii.gz' file. Got '{annotation_path}' instead.")
-    
+
     # create output directory if it does not exist
     output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-    
+    if output_dir:
+        ensure_dir(output_dir)
+
     # load the annotation
     annotation = sitk.ReadImage(annotation_path, sitk.sitkFloat32)
-    
+
     # load the reference image (defines target space)
     reference_image = sitk.ReadImage(registered_path, sitk.sitkFloat32)
-    
+
     # load the saved transformation
     transformation = sitk.ReadTransform(transform_path)
-    
+
     # apply the transformation to the annotation
     transformed_annotation = sitk.Resample(
         annotation,
@@ -1711,48 +1729,47 @@ def register_annotation(annotation_path: str,
         0.0,
         annotation.GetPixelID()
     )
-    
+
     if recalculate_bbox:
         # convert to numpy array for bbox calculation
         transformed_array = sitk.GetArrayFromImage(transformed_annotation)
-        
+
         # find nonzero voxels
         nonzero_coords = np.argwhere(transformed_array > 0)
-        
+
         # if annotation is empty after transformation, save empty mask
         if nonzero_coords.size == 0:
             sitk.WriteImage(transformed_annotation, output_path)
-            if debug:
-                print(f"\nWarning: Transformed annotation is empty.")
-                print(f"Registered annotation saved at: '{output_path}'.")
-            return
-        
+            logger.warning("Transformed annotation is empty.")
+            logger.info("Registered annotation saved at: '%s'.", output_path)
+            return output_path
+
         # find min and max indices for each axis
         z_min, y_min, x_min = nonzero_coords.min(axis=0)
         z_max, y_max, x_max = nonzero_coords.max(axis=0)
-        
+
         # create new mask with tight bounding box
         new_annotation_array = np.zeros_like(transformed_array, dtype=np.uint8)
         new_annotation_array[z_min:z_max + 1, y_min:y_max + 1, x_min:x_max + 1] = 1
-        
+
         # convert back to SimpleITK
         final_annotation = sitk.GetImageFromArray(new_annotation_array)
         final_annotation.CopyInformation(reference_image)
-        
+
         # save the new bounding box
         sitk.WriteImage(final_annotation, output_path)
-        
-        if debug:
-            print(f"\nBounding box recalculated:")
-            print(f"  Original bbox size: {nonzero_coords.shape[0]} voxels")
-            print(f"  New bbox: [{x_min}:{x_max}, {y_min}:{y_max}, {z_min}:{z_max}]")
-            print(f"Registered annotation saved at: '{output_path}'.")
+
+        logger.debug("Bounding box recalculated:")
+        logger.debug("  Original bbox size: %d voxels", nonzero_coords.shape[0])
+        logger.debug("  New bbox: [%d:%d, %d:%d, %d:%d]", x_min, x_max, y_min, y_max, z_min, z_max)
+        logger.info("Registered annotation saved at: '%s'.", output_path)
     else:
         # save the deformed annotation without recalculation
         sitk.WriteImage(transformed_annotation, output_path)
-        
-        if debug:
-            print(f"\nRegistered annotation saved at: '{output_path}'.")
+
+        logger.info("Registered annotation saved at: '%s'.", output_path)
+
+    return output_path
 
 
 def register_annotation_dataset(annotation_folder: str,
@@ -1761,7 +1778,7 @@ def register_annotation_dataset(annotation_folder: str,
                                 output_path: str,
                                 recalculate_bbox: bool = True,
                                 saving_mode: str = "case",
-                                debug: bool = False) -> None:
+                                debug: bool = False) -> list:
     """
     Apply saved spatial transformations to all annotation files in a dataset folder.
 
@@ -1874,64 +1891,60 @@ def register_annotation_dataset(annotation_folder: str,
     ... )
     """
 
-    # check if annotation folder exists
-    if not os.path.isdir(annotation_folder):
-        raise FileNotFoundError(f"Error: the annotation folder '{annotation_folder}' does not exist.")
-    
-    # get all .nii.gz files in the annotation folder
-    annotation_files = [f for f in os.listdir(annotation_folder) if f.endswith(".nii.gz")]
-    
-    # check if there are annotation files
-    if not annotation_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{annotation_folder}'.")
-    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
+    # get all NIfTI files in the annotation folder (sorted)
+    annotation_files = list_nifti_files(annotation_folder)
+
     # validate saving_mode
     if saving_mode not in ["case", "folder"]:
         raise ValueError("Error: saving_mode must be either 'case' or 'folder'.")
-    
+
     # create output directory
-    os.makedirs(output_path, exist_ok=True)
-    
+    ensure_dir(output_path)
+
+    output_paths = []
+
     # iterate over annotation files with progress bar
     for annotation_file in tqdm(annotation_files, desc="Processing annotations", unit="annotation"):
         # extract the filename prefix
-        prefix = os.path.basename(annotation_file).replace("_bbox.nii.gz", "")
-        
+        prefix = strip_nifti_ext(os.path.basename(annotation_file)).replace("_bbox", "")
+
         # construct annotation path
         annotation_path = os.path.join(annotation_folder, annotation_file)
-        
+
         # find transformation and reference files based on saving mode
         if saving_mode == "case":
             # search in case subdirectories: transform_folder/<PREFIX>/
             transform_file = os.path.join(transform_folder, prefix, f"{prefix}_transformation.tfm")
             registered_file = os.path.join(registered_folder, prefix, f"{prefix}_registered.nii.gz")
-            
+
         else:  # saving_mode == "folder"
             # search directly in folders by prefix matching
             transform_file = os.path.join(transform_folder, f"{prefix}_transformation.tfm")
             registered_file = os.path.join(registered_folder, f"{prefix}_registered.nii.gz")
-        
+
         # check if files exist
         if not os.path.exists(transform_file):
-            if debug:
-                print(f"\nWarning: Transformation file not found at '{transform_file}', skipping...")
+            logger.warning("Transformation file not found at '%s', skipping...", transform_file)
             continue
-        
+
         if not os.path.exists(registered_file):
-            if debug:
-                print(f"\nWarning: Reference image not found at '{registered_file}', skipping...")
+            logger.warning("Reference image not found at '%s', skipping...", registered_file)
             continue
-        
+
         # determine output path based on saving mode
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix)
-            os.makedirs(case_output_dir, exist_ok=True)
+            ensure_dir(case_output_dir)
             output_file = os.path.join(case_output_dir, f"{prefix}_registered_bbox.nii.gz")
         else:
             output_file = os.path.join(output_path, f"{prefix}_registered_bbox.nii.gz")
-        
+
         # register the annotation
-        register_annotation(
+        result_path = register_annotation(
             annotation_path=annotation_path,
             transform_path=transform_file,
             registered_path=registered_file,
@@ -1939,8 +1952,8 @@ def register_annotation_dataset(annotation_folder: str,
             recalculate_bbox=recalculate_bbox,
             debug=debug
         )
-    
-    if debug:
-        print(f"\nAnnotation registration completed for all files in '{annotation_folder}'.")
+        output_paths.append(result_path)
 
-        
+    logger.info("Annotation registration completed for all files in '%s'.", annotation_folder)
+
+    return output_paths

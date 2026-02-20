@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "nidataset"
+dynamic = ["version"]
+description = "A set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and preprocessing of medical imaging data."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Giulio Russo"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "nibabel>=5.0.0",
+    "numpy>=1.24",
+    "opencv-python>=4.7",
+    "pandas>=1.5",
+    "Pillow>=9.4",
+    "scipy>=1.10",
+    "SimpleITK>=2.2",
+    "scikit-image>=0.19",
+    "tqdm>=4.64",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/GiulioRusso/Ni-Dataset"
+Documentation = "https://giuliorusso.github.io/Ni-Dataset/"
+Repository = "https://github.com/GiulioRusso/Ni-Dataset"
+Issues = "https://github.com/GiulioRusso/Ni-Dataset/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "nidataset._version.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["nidataset*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
