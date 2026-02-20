@@ -27,10 +27,7 @@ from ._helpers import (
 logger = logging.getLogger("nidataset")
 
 
-# ---------------------------------------------------------------------------
 # Volume comparison
-# ---------------------------------------------------------------------------
-
 
 def compare_volumes(nii_path_a: str,
                     nii_path_b: str,
@@ -241,10 +238,7 @@ def compare_volumes_dataset(nii_folder_a: str,
     return csv_path
 
 
-# ---------------------------------------------------------------------------
 # Intensity statistics
-# ---------------------------------------------------------------------------
-
 
 def compute_volume_statistics(nii_path: str,
                               mask_path: Optional[str] = None,
@@ -369,10 +363,7 @@ def compute_volume_statistics_dataset(nii_folder: str,
     return csv_path
 
 
-# ---------------------------------------------------------------------------
 # Dataset splitting
-# ---------------------------------------------------------------------------
-
 
 def split_dataset(nii_folder: str,
                   output_path: str,

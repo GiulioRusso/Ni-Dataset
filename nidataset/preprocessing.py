@@ -22,6 +22,8 @@ from ._helpers import (
 logger = logging.getLogger("nidataset")
 
 
+# Skulling
+
 def skull_CTA(nii_path: str,
               output_path: str,
               f_value: float = 0.1,
@@ -367,6 +369,8 @@ def skull_CTA_dataset(nii_folder: str,
     return output_paths
 
 
+# Maximum Intensity Projection
+
 def mip(nii_path: str,
         output_path: str,
         window_size: int = 10,
@@ -617,6 +621,8 @@ def mip_dataset(nii_folder: str,
     return output_paths
 
 
+# Resampling
+
 def resampling(nii_path: str,
                output_path: str,
                desired_volume: tuple,
@@ -828,6 +834,8 @@ def resampling_dataset(nii_folder: str,
 
     return output_paths
 
+
+# Registration
 
 def register_CTA(nii_path: str,
                  mask_path: str,

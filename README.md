@@ -40,6 +40,12 @@ and can be imported as:
 import nidataset as nid
 ```
 
+## 📦 Package documentation
+
+Package documentation is available [here](https://giuliorusso.github.io/Ni-Dataset/).
+
+A complete project example that use `nidataset` is available [here](https://github.com/GiulioRusso/CT-manager)
+
 ## 🚨 Requirements
 
 ```bash
@@ -58,41 +64,6 @@ Install the requirements with:
 ```bash
 pip install -r requirements.txt
 ```
-
-## 📂 Project Organization
-
-The package consists of the following Python modules:
-```bash
-.
-├── nidataset/                # The NIfTI dataset management package folder
-│   ├── draw.py               # Functions for drawing and manipulating bounding boxes on NIfTI images.
-│   ├── preprocessing.py      # Functions for preprocessing pipelines on NIfTI images.
-│   ├── slices.py             # Functions for extracting slices and annotations from NIfTI files.
-│   ├── utility.py            # Utility functions for dataset information statistics.
-│   └── volume.py             # Functions for NIfTI volume transformations and modifications.
-│
-├── example.py                # The script that demonstrates usage of the package.
-│
-├── dataset/                  # Example dataset folder
-│   ├── toy-CTA.nii.gz        # Example NIfTI file.
-│   └── toy-annotation.nii.gz # Example annotation file.
-│
-└── output/                   # Folder for output results
-```
-
-Run the application example with:
-
-```bash
-python3 example.py
-```
-
-This code will extract the slices and the annotations from a toy CTA and annotation bounding box. Then axial and coronal views are shifted.
-
-## 📦 Package documentation
-
-Package documentation is available [here](https://giuliorusso.github.io/Ni-Dataset/).
-
-A complete project example that use `nidataset` is available [here](https://github.com/GiulioRusso/CT-manager)
 
 ## 🤝 Contribution
 👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
