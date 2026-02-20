@@ -1,4 +1,5 @@
 import os
+import logging
 from tqdm import tqdm
 import csv
 import subprocess
@@ -10,14 +11,24 @@ from scipy.ndimage import label as ndi_label
 from skimage.morphology import binary_closing, ball
 from skimage.filters import threshold_otsu
 
+from ._helpers import (
+    validate_nifti_path,
+    list_nifti_files,
+    ensure_dir,
+    strip_nifti_ext,
+    is_nifti,
+)
 
-def swap_nifti_views(nii_path: str, 
-                     output_path: str, 
-                     source_view: str, 
-                     target_view: str, 
-                     debug: bool = False) -> None:
+logger = logging.getLogger("nidataset")
+
+
+def swap_nifti_views(nii_path: str,
+                     output_path: str,
+                     source_view: str,
+                     target_view: str,
+                     debug: bool = False) -> str:
     """
-    Swaps the anatomical view of a 3D NIfTI image by reordering axes, applying 
+    Swaps the anatomical view of a 3D NIfTI image by reordering axes, applying
     a 90-degree rotation, and updating the affine matrix to preserve orientation.
     Saves:
 
@@ -37,22 +48,25 @@ def swap_nifti_views(nii_path: str,
         Directory where the swapped NIfTI file will be saved. Created if missing.
 
     :param source_view:
-        Current anatomical view of the volume. Must be one of ``"axial"``, 
+        Current anatomical view of the volume. Must be one of ``"axial"``,
         ``"coronal"``, or ``"sagittal"``.
 
     :param target_view:
-        Desired anatomical view. Must be one of ``"axial"``, ``"coronal"``, 
+        Desired anatomical view. Must be one of ``"axial"``, ``"coronal"``,
         or ``"sagittal"``.
 
     :param debug:
-        If ``True``, prints detailed information about the input shape, swapped 
+        If ``True``, prints detailed information about the input shape, swapped
         shape, and saved file path.
+
+    :returns:
+        Path to the saved swapped NIfTI file.
 
     :raises FileNotFoundError:
         If the input NIfTI file does not exist.
 
     :raises ValueError:
-        If the input file is not 3D, has invalid dimensions, or if the views 
+        If the input file is not 3D, has invalid dimensions, or if the views
         are not among the allowed choices.
 
     Example
@@ -68,13 +82,12 @@ def swap_nifti_views(nii_path: str,
     ... )
     """
 
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file. Got '{nii_path}' instead.")
+    # check if the input file exists and has a valid NIfTI extension
+    validate_nifti_path(nii_path)
 
     # validate the view parameters
     valid_views = {'axial', 'coronal', 'sagittal'}
@@ -85,8 +98,7 @@ def swap_nifti_views(nii_path: str,
 
 
     # create output dir if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # load the NIfTI file
     nii_img = nib.load(nii_path)
@@ -146,51 +158,52 @@ def swap_nifti_views(nii_path: str,
     swapped_img = nib.Nifti1Image(swapped_data, new_affine, header=new_header)
 
     # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
 
     # save the swapped image
     swapped_filename = os.path.join(output_path, f"{prefix}_swapped_{source_view}_to_{target_view}.nii.gz")
     nib.save(swapped_img, swapped_filename)
 
-    # debug print
-    if debug:
-        print(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'")
-        print(f"Original shape: {nii_data.shape} | Swapped shape: {swapped_data.shape}")
-        print(f"View swapped from {source_view} to {target_view}")
-        print(f"Swapped NIfTI saved at: {swapped_filename}")
+    # debug logging
+    logger.info(f"Input file: '{nii_path}' | Output path: '{output_path}'")
+    logger.debug(f"Original shape: {nii_data.shape} | Swapped shape: {swapped_data.shape}")
+    logger.info(f"View swapped from {source_view} to {target_view}")
+    logger.info(f"Swapped NIfTI saved at: {swapped_filename}")
+
+    return swapped_filename
 
 
-def extract_bounding_boxes(mask_path: str, 
-                           output_path: str, 
-                           voxel_size: tuple = (3.0, 3.0, 3.0), 
-                           volume_threshold: float = 1000.0, 
-                           mask_value: int = 1, 
-                           debug: bool = False) -> None:
+def extract_bounding_boxes(mask_path: str,
+                           output_path: str,
+                           voxel_size: tuple = (3.0, 3.0, 3.0),
+                           volume_threshold: float = 1000.0,
+                           mask_value: int = 1,
+                           debug: bool = False) -> str:
     """
     Extracts 3D bounding boxes from a segmentation mask by identifying connected
-    components, filtering out small regions, and generating a bounding-box 
+    components, filtering out small regions, and generating a bounding-box
     annotation volume. Saves:
 
         <PREFIX>_bounding_boxes.nii.gz
 
     .. note::
-       - Connected components are detected from the input mask using the value 
+       - Connected components are detected from the input mask using the value
          specified in ``mask_value``.
-       - Components with physical volume below ``volume_threshold`` (mm³) 
+       - Components with physical volume below ``volume_threshold`` (mm³)
          are discarded.
-       - The output file contains a binary volume where each bounding box is 
+       - The output file contains a binary volume where each bounding box is
          filled with the value ``255``.
        - The output directory is created automatically if missing.
 
     :param mask_path:
-        Path to the input 3D segmentation mask (``.nii.gz``). The mask must be 
+        Path to the input 3D segmentation mask (``.nii.gz``). The mask must be
         a single-label or multi-label volume containing the target region.
 
     :param output_path:
         Directory where the bounding box annotation NIfTI file will be saved.
 
     :param voxel_size:
-        Physical voxel dimensions in millimeters, given as ``(sx, sy, sz)``. 
+        Physical voxel dimensions in millimeters, given as ``(sx, sy, sz)``.
         Used to compute component volumes.
 
     :param volume_threshold:
@@ -203,6 +216,9 @@ def extract_bounding_boxes(mask_path: str,
     :param debug:
         If ``True``, prints detailed information about detected components,
         bounding box sizes, and final output path.
+
+    :returns:
+        Path to the saved bounding box NIfTI file.
 
     :raises FileNotFoundError:
         If the mask file does not exist.
@@ -224,24 +240,22 @@ def extract_bounding_boxes(mask_path: str,
     ... )
     """
 
-    # check if the input mask file exists
-    if not os.path.isfile(mask_path):
-        raise FileNotFoundError(f"Error: the input file '{mask_path}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # ensure the file is a .nii.gz file
-    if not mask_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{mask_path}'.")
+    # check if the input mask file exists and has a valid NIfTI extension
+    validate_nifti_path(mask_path)
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # load the NIfTI mask file
     mask_img = nib.load(mask_path)
     mask_data = mask_img.get_fdata()
 
     # extract filename prefix
-    prefix = os.path.basename(mask_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(mask_path))
 
     # filter the mask to retain only the desired label
     binary_mask = (mask_data == mask_value).astype(np.uint8)
@@ -281,18 +295,19 @@ def extract_bounding_boxes(mask_path: str,
     bbox_filename = os.path.join(output_path, f"{prefix}_bounding_boxes.nii.gz")
     nib.save(bbox_nifti, bbox_filename)
 
-    # debug print
-    if debug:
-        print(f"\nInput file: '{mask_path}'\nOutput path: '{bbox_filename}'\nTotal bounding boxes extracted: {len(bounding_boxes)}")
+    # debug logging
+    logger.info(f"Input file: '{mask_path}' | Output path: '{bbox_filename}' | Total bounding boxes extracted: {len(bounding_boxes)}")
+
+    return bbox_filename
 
 
-def extract_bounding_boxes_dataset(mask_folder: str, 
-                                   output_path: str, 
-                                   voxel_size: tuple = (3.0, 3.0, 3.0), 
-                                   volume_threshold: float = 1000.0, 
+def extract_bounding_boxes_dataset(mask_folder: str,
+                                   output_path: str,
+                                   voxel_size: tuple = (3.0, 3.0, 3.0),
+                                   volume_threshold: float = 1000.0,
                                    mask_value: int = 1,
                                    save_stats: bool = True,
-                                   debug: bool = False) -> None:
+                                   debug: bool = False) -> list:
     """
     Extracts 3D bounding boxes from all segmentation masks in a dataset folder and
     saves a NIfTI file for each case:
@@ -331,6 +346,9 @@ def extract_bounding_boxes_dataset(mask_folder: str,
     :param debug:
         If ``True``, prints internal diagnostic information and summaries.
 
+    :returns:
+        List of output file paths for all generated bounding box NIfTI files.
+
     :raises FileNotFoundError:
         If ``mask_folder`` does not exist or contains no ``.nii.gz`` files.
 
@@ -349,24 +367,20 @@ def extract_bounding_boxes_dataset(mask_folder: str,
     ... )
     """
 
-    # check if the dataset folder exists
-    if not os.path.isdir(mask_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{mask_folder}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # get all .nii.gz mask files in the dataset folder
-    mask_files = [f for f in os.listdir(mask_folder) if f.endswith(".nii.gz")]
-
-    # check if there are NIfTI files in the dataset folder
-    if not mask_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{mask_folder}'.")
+    # get all NIfTI mask files in the dataset folder (sorted)
+    mask_files = list_nifti_files(mask_folder)
 
     # create output directory if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # initialize statistics tracking
     stats = []
     total_bounding_boxes = 0
+    output_files = []
     stats_file = os.path.join(output_path, "bounding_boxes_stats.csv") if save_stats else None
 
     # iterate over mask files with tqdm progress bar
@@ -397,7 +411,8 @@ def extract_bounding_boxes_dataset(mask_folder: str,
             continue  # skip this file if an error occurs
 
         # call extract_bounding_boxes function (without modifications)
-        extract_bounding_boxes(mask_path, output_path, voxel_size, volume_threshold, mask_value, debug=False)
+        result_path = extract_bounding_boxes(mask_path, output_path, voxel_size, volume_threshold, mask_value, debug=False)
+        output_files.append(result_path)
 
     # save statistics if enabled
     if save_stats:
@@ -406,27 +421,28 @@ def extract_bounding_boxes_dataset(mask_folder: str,
             writer.writerow(["FILENAME", "NUM_BOUNDING_BOXES"])
             writer.writerows(stats)
             writer.writerow(["TOTAL_BOUNDING_BOXES", total_bounding_boxes])
-        
-        print(f"\nBounding box statistics saved in: '{stats_file}'")
-    
-    # debug print
-    if debug:
-        print(f"\nInput folder: '{mask_folder}'\nOutput path: '{output_path}'")
-        print(f"Total files processed: {len(mask_files)} | Total bounding boxes extracted: {total_bounding_boxes}")
+
+        logger.info(f"Bounding box statistics saved in: '{stats_file}'")
+
+    # debug logging
+    logger.info(f"Input folder: '{mask_folder}' | Output path: '{output_path}'")
+    logger.debug(f"Total files processed: {len(mask_files)} | Total bounding boxes extracted: {total_bounding_boxes}")
+
+    return output_files
 
 
-def generate_brain_mask(nii_path: str, 
-                        output_path: str, 
+def generate_brain_mask(nii_path: str,
+                        output_path: str,
                         threshold: tuple = None,
                         closing_radius: int = 3,
-                        debug: bool = False) -> None:
+                        debug: bool = False) -> str:
     """
     Generates a brain mask from a brain CTA scan in NIfTI format and saves the file as:
 
         <PREFIX>_mask.nii.gz
 
     .. note::
-       - If ``threshold`` is None, Otsu’s thresholding is used automatically.
+       - If ``threshold`` is None, Otsu's thresholding is used automatically.
        - The mask is refined via hole filling and morphological closing.
        - Only the largest connected component is kept (assumed to be the brain).
        - Output directory is created if it does not exist.
@@ -449,6 +465,9 @@ def generate_brain_mask(nii_path: str,
         If ``True``, prints diagnostic information about thresholds, data shapes,
         and saved file locations.
 
+    :returns:
+        Path to the saved brain mask NIfTI file.
+
     :raises FileNotFoundError:
         If the input NIfTI file does not exist.
 
@@ -468,17 +487,15 @@ def generate_brain_mask(nii_path: str,
     ... )
     """
 
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
+    # check if the input file exists and has a valid NIfTI extension
+    validate_nifti_path(nii_path)
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # load the CTA NIfTI file
     nii_img = nib.load(nii_path)
@@ -498,8 +515,7 @@ def generate_brain_mask(nii_path: str,
         otsu_thresh = threshold_otsu(nii_data[nii_data > 0])  # ignore background
         lower_bound = otsu_thresh * 0.5  # relax lower bound to capture soft tissue
         upper_bound = otsu_thresh * 2.0  # allow brighter regions
-        if debug:
-            print(f"\nUsing Otsu's threshold: {otsu_thresh:.2f}\nAdjusted range: ({lower_bound:.2f}, {upper_bound:.2f})")
+        logger.debug(f"Using Otsu's threshold: {otsu_thresh:.2f} | Adjusted range: ({lower_bound:.2f}, {upper_bound:.2f})")
     else:
         lower_bound, upper_bound = threshold
 
@@ -525,22 +541,23 @@ def generate_brain_mask(nii_path: str,
     brain_mask_nifti = nib.Nifti1Image(brain_mask, affine)
 
     # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
 
     # save the new brain mask image
     mask_filename = os.path.join(output_path, f"{prefix}_mask.nii.gz")
     nib.save(brain_mask_nifti, mask_filename)
 
-    # debug print
-    if debug:
-        print(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'\nBrain mask saved at: {mask_filename}")
+    # debug logging
+    logger.info(f"Input file: '{nii_path}' | Output path: '{output_path}' | Brain mask saved at: {mask_filename}")
+
+    return mask_filename
 
 
-def generate_brain_mask_dataset(nii_folder: str, 
-                                output_path: str, 
+def generate_brain_mask_dataset(nii_folder: str,
+                                output_path: str,
                                 threshold: tuple = None,
                                 closing_radius: int = 3,
-                                debug: bool = False) -> None:
+                                debug: bool = False) -> list:
     """
     Generates brain masks for all brain CTA scans inside a dataset folder and
     saves each output as:
@@ -550,7 +567,7 @@ def generate_brain_mask_dataset(nii_folder: str,
     .. note::
        - All ``.nii.gz`` files in the folder are processed.
        - Each scan is segmented using ``generate_brain_mask``.
-       - If ``threshold`` is None, Otsu’s thresholding is used per-volume.
+       - If ``threshold`` is None, Otsu's thresholding is used per-volume.
        - Output directory is created if missing.
        - Input scans must be 3D NIfTI images.
 
@@ -570,6 +587,9 @@ def generate_brain_mask_dataset(nii_folder: str,
     :param debug:
         If ``True``, prints summary information after processing the dataset.
 
+    :returns:
+        List of output file paths for all generated brain mask NIfTI files.
+
     :raises FileNotFoundError:
         If the folder does not exist or contains no ``.nii.gz`` files.
 
@@ -586,41 +606,39 @@ def generate_brain_mask_dataset(nii_folder: str,
     ... )
     """
 
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the dataset folder '{nii_folder}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # get all .nii.gz files in the dataset folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-
-    # check if there are NIfTI files in the dataset folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+    # get all NIfTI files in the dataset folder (sorted)
+    nii_files = list_nifti_files(nii_folder)
 
     # create output directory if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # iterate over NIfTI files with tqdm progress bar
+    output_files = []
     for nii_file in tqdm(nii_files, desc="Processing Brain CTA files", unit="file"):
         # construct full file path
         nii_path = os.path.join(nii_folder, nii_file)
 
         # call generate_brain_mask function
-        generate_brain_mask(nii_path, output_path, threshold, closing_radius, debug=debug)
+        result_path = generate_brain_mask(nii_path, output_path, threshold, closing_radius, debug=debug)
+        output_files.append(result_path)
 
-    # debug print
-    if debug:
-        print(f"\nInput folder: '{nii_folder}'\nOutput path: '{output_path}'")
-        print(f"Total brain masks generated: {len(nii_files)}")
+    # debug logging
+    logger.info(f"Input folder: '{nii_folder}' | Output path: '{output_path}'")
+    logger.debug(f"Total brain masks generated: {len(nii_files)}")
+
+    return output_files
 
 
 def crop_and_pad(nii_path: str,
                  output_path: str,
                  target_shape: tuple = (128, 128, 128),
-                 debug: bool = False) -> None:
+                 debug: bool = False) -> str:
     """
-    Finds the minimum bounding box around a CTA scan, crops the volume, pads it 
+    Finds the minimum bounding box around a CTA scan, crops the volume, pads it
     to a fixed target size, and preserves spatial orientation. Saves the result as:
 
         <PREFIX>_cropped_padded.nii.gz
@@ -644,6 +662,9 @@ def crop_and_pad(nii_path: str,
     :param debug:
         If ``True``, prints detailed shape information and the output file path.
 
+    :returns:
+        Path to the saved cropped and padded NIfTI file.
+
     :raises FileNotFoundError:
         If the input file does not exist.
 
@@ -662,18 +683,15 @@ def crop_and_pad(nii_path: str,
     ... )
     """
 
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: The input file '{nii_path}' does not exist.")
-
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: Invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
+    # check if the input file exists and has a valid NIfTI extension
+    validate_nifti_path(nii_path)
 
     # create output dir if it does not exists
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # load the CTA NIfTI file
     nii_img = nib.load(nii_path)
@@ -695,8 +713,8 @@ def crop_and_pad(nii_path: str,
     max_coords = coords.max(axis=0)
 
     # crop the image to the bounding box
-    cropped_data = nii_data[min_coords[0]:max_coords[0]+1, 
-                            min_coords[1]:max_coords[1]+1, 
+    cropped_data = nii_data[min_coords[0]:max_coords[0]+1,
+                            min_coords[1]:max_coords[1]+1,
                             min_coords[2]:max_coords[2]+1]
 
     # get the new cropped shape
@@ -745,23 +763,24 @@ def crop_and_pad(nii_path: str,
     processed_image.set_sform(new_affine)
 
     # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
 
     # save the processed image
     processed_filename = os.path.join(output_path, f"{prefix}_cropped_padded.nii.gz")
     nib.save(processed_image, processed_filename)
 
-    # debug print
-    if debug:
-        print(f"\nInput File: '{nii_path}'\nOutput Path: '{output_path}'")
-        print(f"Original Shape: {nii_data.shape} | Cropped Shape: {cropped_shape} | Final Shape: {padded_data.shape}")
-        print(f"Processed CTA Saved at: {processed_filename}")
+    # debug logging
+    logger.info(f"Input File: '{nii_path}' | Output Path: '{output_path}'")
+    logger.debug(f"Original Shape: {nii_data.shape} | Cropped Shape: {cropped_shape} | Final Shape: {padded_data.shape}")
+    logger.info(f"Processed CTA Saved at: {processed_filename}")
+
+    return processed_filename
 
 
-def crop_and_pad_dataset(nii_folder: str, 
-                         output_path: str, 
-                         target_shape: tuple = (128, 128, 128), 
-                         save_stats: bool = False) -> None:
+def crop_and_pad_dataset(nii_folder: str,
+                         output_path: str,
+                         target_shape: tuple = (128, 128, 128),
+                         save_stats: bool = False) -> list:
     """
     Processes all CTA scans inside a dataset folder, applies ``crop_and_pad`` to each
     volume, and saves every output as:
@@ -788,6 +807,9 @@ def crop_and_pad_dataset(nii_folder: str,
         If ``True``, saves a ``crop_pad_stats.csv`` file containing
         ``FILENAME``, ``ORIGINAL_SHAPE``, and ``FINAL_SHAPE``.
 
+    :returns:
+        List of output file paths for all generated cropped and padded NIfTI files.
+
     :raises FileNotFoundError:
         If the folder does not exist or contains no ``.nii.gz`` files.
 
@@ -803,23 +825,15 @@ def crop_and_pad_dataset(nii_folder: str,
     ... )
     """
 
-    # check if the dataset folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: The dataset folder '{nii_folder}' does not exist.")
-
-    # get all .nii.gz files in the dataset folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-
-    # check if there are NIfTI files in the dataset folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: No .nii.gz files found in '{nii_folder}'.")
+    # get all NIfTI files in the dataset folder (sorted)
+    nii_files = list_nifti_files(nii_folder)
 
     # create output directory if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # initialize statistics tracking
     stats = []
+    output_files = []
     stats_file = os.path.join(output_path, "crop_pad_stats.csv") if save_stats else None
 
     # iterate over nii.gz files with tqdm progress bar
@@ -828,7 +842,7 @@ def crop_and_pad_dataset(nii_folder: str,
         nii_path = os.path.join(nii_folder, nii_file)
 
         # extract the filename prefix (case ID)
-        prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+        prefix = strip_nifti_ext(os.path.basename(nii_path))
 
         # update tqdm description with the current file prefix
         tqdm.write(f"Processing: {prefix}")
@@ -843,7 +857,8 @@ def crop_and_pad_dataset(nii_folder: str,
             continue  # skip this file if an error occurs
 
         # call crop_and_pad function
-        crop_and_pad(nii_path, output_path, target_shape, debug=False)
+        result_path = crop_and_pad(nii_path, output_path, target_shape, debug=False)
+        output_files.append(result_path)
 
         # get the final shape for statistics
         processed_filename = os.path.join(output_path, f"{prefix}_cropped_padded.nii.gz")
@@ -865,8 +880,10 @@ def crop_and_pad_dataset(nii_folder: str,
             writer = csv.writer(csvfile)
             writer.writerow(["FILENAME", "ORIGINAL_SHAPE", "FINAL_SHAPE"])
             writer.writerows(stats)
-        
-        print(f"\nCrop and pad statistics saved in: '{stats_file}'")
+
+        logger.info(f"Crop and pad statistics saved in: '{stats_file}'")
+
+    return output_files
 
 
 def generate_heatmap_volume(nii_folder: str,
@@ -875,7 +892,7 @@ def generate_heatmap_volume(nii_folder: str,
                             use_mean: bool = True,
                             clip_to_input_range: bool = True,
                             normalize: bool = False,
-                            debug: bool = False) -> None:
+                            debug: bool = False) -> str:
     """
     Generates a synthetic heatmap volume by averaging or summing all NIfTI files in a folder.
     The resulting volume represents the spatial probability/density across all inputs.
@@ -903,7 +920,7 @@ def generate_heatmap_volume(nii_folder: str,
         Name of the output heatmap file (default: ``"heatmap_volume.nii.gz"``).
 
     :param use_mean:
-        If ``True`` (default), computes the mean across volumes, resulting in a 
+        If ``True`` (default), computes the mean across volumes, resulting in a
         probability/density map. If ``False``, sums all volumes instead.
 
     :param clip_to_input_range:
@@ -918,6 +935,9 @@ def generate_heatmap_volume(nii_folder: str,
     :param debug:
         If ``True``, prints detailed information about input files, value ranges,
         and output statistics.
+
+    :returns:
+        Path to the saved heatmap NIfTI file.
 
     :raises FileNotFoundError:
         If the folder does not exist or contains no ``.nii.gz`` files.
@@ -952,20 +972,15 @@ def generate_heatmap_volume(nii_folder: str,
     ... )
     """
 
-    # check if the input folder exists
-    if not os.path.isdir(nii_folder):
-        raise FileNotFoundError(f"Error: the input folder '{nii_folder}' does not exist.")
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
-    # get all .nii.gz files in the folder
-    nii_files = [f for f in os.listdir(nii_folder) if f.endswith(".nii.gz")]
-
-    # check if there are NIfTI files in the folder
-    if not nii_files:
-        raise FileNotFoundError(f"Error: no .nii.gz files found in '{nii_folder}'.")
+    # get all NIfTI files in the folder (sorted)
+    nii_files = list_nifti_files(nii_folder)
 
     # create output directory if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # initialize variables for accumulation
     accumulated_volume = None
@@ -996,9 +1011,7 @@ def generate_heatmap_volume(nii_folder: str,
                 reference_header = nii_img.header.copy()
                 reference_shape = nii_data.shape
 
-                if debug:
-                    print(f"\nReference volume: '{nii_file}'")
-                    print(f"Reference shape: {reference_shape}")
+                logger.debug(f"Reference volume: '{nii_file}' | Reference shape: {reference_shape}")
 
             # check shape consistency
             if nii_data.shape != reference_shape:
@@ -1017,8 +1030,7 @@ def generate_heatmap_volume(nii_folder: str,
                 global_min = min(global_min, file_min)
                 global_max = max(global_max, file_max)
 
-                if debug:
-                    print(f"File {idx+1}/{len(nii_files)}: '{nii_file}' | Range: [{file_min:.2f}, {file_max:.2f}]")
+                logger.debug(f"File {idx+1}/{len(nii_files)}: '{nii_file}' | Range: [{file_min:.2f}, {file_max:.2f}]")
 
         except Exception as e:
             tqdm.write(f"Error processing file '{nii_file}': {e}")
@@ -1029,17 +1041,14 @@ def generate_heatmap_volume(nii_folder: str,
 
     # apply mean or keep sum
     if use_mean:
-        if debug:
-            print(f"\nComputing mean across {num_files} volumes...")
+        logger.debug(f"Computing mean across {num_files} volumes...")
         accumulated_volume = accumulated_volume / num_files
     else:
-        if debug:
-            print(f"\nUsing sum of {num_files} volumes...")
+        logger.debug(f"Using sum of {num_files} volumes...")
 
     # apply clipping if requested
     if clip_to_input_range:
-        if debug:
-            print(f"Clipping output to input range: [{global_min:.2f}, {global_max:.2f}]")
+        logger.debug(f"Clipping output to input range: [{global_min:.2f}, {global_max:.2f}]")
         accumulated_volume = np.clip(accumulated_volume, global_min, global_max)
 
     # apply normalization if requested
@@ -1048,36 +1057,35 @@ def generate_heatmap_volume(nii_folder: str,
         max_val = np.max(accumulated_volume)
         if max_val > min_val:  # avoid division by zero
             accumulated_volume = (accumulated_volume - min_val) / (max_val - min_val)
-            if debug:
-                print(f"Normalized output to [0, 1] range")
+            logger.debug(f"Normalized output to [0, 1] range")
         else:
-            if debug:
-                print("Skipping normalization (volume is constant)")
+            logger.debug("Skipping normalization (volume is constant)")
 
     # create new NIfTI image with the accumulated heatmap
-    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32), 
-                                   reference_affine, 
+    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32),
+                                   reference_affine,
                                    header=reference_header)
 
     # update header with correct data type
     new_header = reference_header.copy()
     new_header.set_data_dtype(np.float32)
-    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32), 
-                                   reference_affine, 
+    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32),
+                                   reference_affine,
                                    header=new_header)
 
     # save the heatmap volume
     output_file = os.path.join(output_path, output_filename)
     nib.save(heatmap_img, output_file)
 
-    # debug print
-    if debug:
-        print(f"\nHeatmap generation complete:")
-        print(f"  Input folder: '{nii_folder}'")
-        print(f"  Output file: '{output_file}'")
-        print(f"  Total files processed: {len(nii_files)}")
-        print(f"  Aggregation method: {'Mean' if use_mean else 'Sum'}")
-        print(f"  Output shape: {accumulated_volume.shape}")
-        print(f"  Output value range: [{np.min(accumulated_volume):.2f}, {np.max(accumulated_volume):.2f}]")
-        print(f"  Clipping enabled: {clip_to_input_range}")
-        print(f"  Normalization enabled: {normalize}")
+    # debug logging
+    logger.info(f"Heatmap generation complete:")
+    logger.info(f"  Input folder: '{nii_folder}'")
+    logger.info(f"  Output file: '{output_file}'")
+    logger.info(f"  Total files processed: {len(nii_files)}")
+    logger.debug(f"  Aggregation method: {'Mean' if use_mean else 'Sum'}")
+    logger.debug(f"  Output shape: {accumulated_volume.shape}")
+    logger.debug(f"  Output value range: [{np.min(accumulated_volume):.2f}, {np.max(accumulated_volume):.2f}]")
+    logger.debug(f"  Clipping enabled: {clip_to_input_range}")
+    logger.debug(f"  Normalization enabled: {normalize}")
+
+    return output_file

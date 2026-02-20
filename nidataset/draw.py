@@ -1,15 +1,21 @@
-import numpy as np
-import nibabel as nib
+import logging
 import os
-import pandas as pd
+
 import cv2
+import nibabel as nib
+import numpy as np
+import pandas as pd
+
+from ._helpers import validate_nifti_path, ensure_dir, strip_nifti_ext
+
+logger = logging.getLogger("nidataset")
 
 
 def draw_3D_boxes(df: pd.DataFrame,
                   nii_path: str,
                   output_path: str,
                   intensity_based_on_score: bool = False,
-                  debug: bool = False) -> None:
+                  debug: bool = False) -> str:
     """
     Draw 3D bounding boxes into a NIfTI volume.
 
@@ -23,11 +29,11 @@ def draw_3D_boxes(df: pd.DataFrame,
     into three levels based on the provided ``SCORE`` column. Otherwise, all boxes
     are assigned an intensity of ``1``.
 
-    :param df: 
+    :param df:
         Input dataframe containing bounding box coordinates. Required columns:
 
-        - ``X_MIN``, ``Y_MIN``, ``Z_MIN``  
-        - ``X_MAX``, ``Y_MAX``, ``Z_MAX``  
+        - ``X_MIN``, ``Y_MIN``, ``Z_MIN``
+        - ``X_MAX``, ``Y_MAX``, ``Z_MAX``
         - ``SCORE`` (only if ``intensity_based_on_score=True``)
 
         Coordinates must be expressed in voxel indices of the reference NIfTI file.
@@ -43,9 +49,9 @@ def draw_3D_boxes(df: pd.DataFrame,
     :param intensity_based_on_score:
         If ``True``, the bounding box intensity is assigned according to the score:
 
-        - ``score ≤ 0.50`` → intensity ``1``  
-        - ``0.50 < score ≤ 0.75`` → intensity ``2``  
-        - ``score > 0.75`` → intensity ``3``  
+        - ``score ≤ 0.50`` → intensity ``1``
+        - ``0.50 < score ≤ 0.75`` → intensity ``2``
+        - ``score > 0.75`` → intensity ``3``
 
         If ``False``, all boxes are drawn with intensity ``1``.
 
@@ -59,14 +65,13 @@ def draw_3D_boxes(df: pd.DataFrame,
         If required columns are missing or if the dataframe contains NaN values.
 
     :returns:
-        ``None``. A new NIfTI file with the suffix ``_boxes.nii.gz`` is saved to
-        ``output_path``.
+        The path to the saved NIfTI output file.
 
     Example
     -------
     >>> import pandas as pd
     >>> from nidataset.draw import draw_3D_boxes
-    >>> 
+    >>>
     >>> data = {
     ...     'SCORE': [0.3, 0.7, 0.9],
     ...     'X_MIN': [10, 30, 50],
@@ -87,27 +92,20 @@ def draw_3D_boxes(df: pd.DataFrame,
     ... )
     """
 
-    # check if the input file exists
-    if not os.path.isfile(nii_path):
-        raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
-
-    # ensure the file is a .nii.gz file
-    if not nii_path.endswith(".nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' file, but got '{nii_path}'.")
+    # check if the input file exists and has a valid NIfTI extension
+    validate_nifti_path(nii_path)
 
     # create output dir if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # define expected columns based on intensity_based_on_score flag
-    expected_columns = ['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']
-    if intensity_based_on_score:
-        expected_columns.insert(0, 'SCORE')
-    
+    coord_columns = ['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']
+    expected_columns = ['SCORE'] + coord_columns if intensity_based_on_score else coord_columns
+
     # validate dataframe
     if not all(col in df.columns for col in expected_columns):
          raise ValueError(f"Error: The input dataframe must contain columns: {expected_columns}")
-    
+
     # load the nii.gz file
     nifti_image = nib.load(nii_path)
     affine = nifti_image.affine
@@ -118,7 +116,13 @@ def draw_3D_boxes(df: pd.DataFrame,
 
     # process each row in the tensor to draw boxes
     for _, row in df.iterrows():
-        score, x_min, y_min, z_min, x_max, y_max, z_max = row.tolist()
+        if intensity_based_on_score:
+            score = row['SCORE']
+            x_min, y_min, z_min = row['X_MIN'], row['Y_MIN'], row['Z_MIN']
+            x_max, y_max, z_max = row['X_MAX'], row['Y_MAX'], row['Z_MAX']
+        else:
+            x_min, y_min, z_min = row['X_MIN'], row['Y_MIN'], row['Z_MIN']
+            x_max, y_max, z_max = row['X_MAX'], row['Y_MAX'], row['Z_MAX']
 
         # determine the intensity for the box based on the score
         if intensity_based_on_score:
@@ -135,55 +139,56 @@ def draw_3D_boxes(df: pd.DataFrame,
         output_data[int(x_min):int(x_max), int(y_min):int(y_max), int(z_min):int(z_max),] = intensity
 
     # extract filename prefix
-    prefix = os.path.basename(nii_path).replace(".nii.gz", "")
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
 
     # create a new Nifti image
     nifti_draw = nib.Nifti1Image(output_data, affine)
-    nii_output_path =  os.path.join(output_path, f"{prefix}_boxes.nii.gz")
+    nii_output_path = os.path.join(output_path, f"{prefix}_boxes.nii.gz")
     nib.save(nifti_draw, nii_output_path)
 
-    if debug:
-        print(f"Boxes draw saved at: '{nii_output_path}'")
+    logger.info("Boxes draw saved at: '%s'", nii_output_path)
+
+    return nii_output_path
 
 
 def draw_2D_annotations(annotation_path: str,
                         image_path: str,
                         output_path: str,
                         radius: int = 5,
-                        debug: bool = False) -> None:
+                        debug: bool = False) -> str:
     """
     Draw 2D annotations on an image based on slice-format CSV files.
 
-    This function loads an image and overlays annotations specified in the input 
+    This function loads an image and overlays annotations specified in the input
     CSV annotation file. The resulting image is saved as:
 
         <IMAGE_FILENAME>_annotated.<EXTENSION>
 
-    The annotation file must be in slice format (not volume format) and can contain 
-    one of three annotation types: center points, bounding boxes, or radius-based 
+    The annotation file must be in slice format (not volume format) and can contain
+    one of three annotation types: center points, bounding boxes, or radius-based
     annotations. All drawings are rendered in yellow (BGR: 0, 255, 255).
 
     :param annotation_path:
         Path to the CSV annotation file. The file must contain one of three formats:
 
         **Format 1 (Center points):**
-        
+
         - ``CENTER_X``, ``CENTER_Y``
-        
-        A small circle with radius ``radius`` is drawn at (CENTER_X, CENTER_Y), 
+
+        A small circle with radius ``radius`` is drawn at (CENTER_X, CENTER_Y),
         and a center point is marked.
 
         **Format 2 (Bounding boxes):**
-        
+
         - ``X_MIN``, ``Y_MIN``, ``X_MAX``, ``Y_MAX``
-        
+
         A rectangle is drawn from (X_MIN, Y_MIN) to (X_MAX, Y_MAX).
 
         **Format 3 (Radius-based):**
-        
+
         - ``CENTER_X``, ``CENTER_Y``, ``RADIUS_X``, ``RADIUS_Y``
-        
-        An ellipse is drawn centered at (CENTER_X, CENTER_Y) with axes 
+
+        An ellipse is drawn centered at (CENTER_X, CENTER_Y) with axes
         corresponding to RADIUS_X and RADIUS_Y.
 
         Coordinates must be expressed in pixel indices of the image.
@@ -211,13 +216,12 @@ def draw_2D_annotations(annotation_path: str,
         or uses volume format (which is not supported by this function).
 
     :returns:
-        ``None``. A new image file with the suffix ``_annotated.<ext>`` is saved to
-        ``output_path``.
+        The path to the saved annotated image file.
 
     Example
     -------
     >>> from nidataset.draw import draw_2D_annotations
-    >>> 
+    >>>
     >>> # Example 1: Center-based annotations
     >>> draw_2D_annotations(
     ...     annotation_path="path/to/image_axial_042.csv",
@@ -253,8 +257,7 @@ def draw_2D_annotations(annotation_path: str,
         raise FileNotFoundError(f"Error: the image file '{image_path}' does not exist.")
 
     # create output dir if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    ensure_dir(output_path)
 
     # load the CSV annotation file
     df = pd.read_csv(annotation_path)
@@ -267,7 +270,7 @@ def draw_2D_annotations(annotation_path: str,
     center_columns = ['CENTER_X', 'CENTER_Y']
     bbox_columns = ['X_MIN', 'Y_MIN', 'X_MAX', 'Y_MAX']
     radius_columns = ['CENTER_X', 'CENTER_Y', 'RADIUS_X', 'RADIUS_Y']
-    
+
     # check for volume format (not supported)
     volume_indicators = ['CENTER_Z', 'Z_MIN', 'Z_MAX', 'RADIUS_Z']
     if any(col in df.columns for col in volume_indicators):
@@ -314,8 +317,7 @@ def draw_2D_annotations(annotation_path: str,
             # draw center point
             cv2.circle(image, (center_x, center_y), 1, yellow, -1)
 
-        if debug:
-            print(f"Drew {len(df)} center points with radius {radius}.")
+        logger.info("Drew %d center points with radius %d.", len(df), radius)
 
     elif is_radius_format:
         for _, row in df.iterrows():
@@ -330,8 +332,7 @@ def draw_2D_annotations(annotation_path: str,
             # draw center point
             cv2.circle(image, (center_x, center_y), 1, yellow, -1)
 
-        if debug:
-            print(f"Drew {len(df)} radius-based annotations (ellipses).")
+        logger.info("Drew %d radius-based annotations (ellipses).", len(df))
 
     elif is_bbox_format:
         for _, row in df.iterrows():
@@ -343,8 +344,7 @@ def draw_2D_annotations(annotation_path: str,
             # draw rectangle
             cv2.rectangle(image, (x_min, y_min), (x_max, y_max), yellow, thickness)
 
-        if debug:
-            print(f"Drew {len(df)} bounding boxes.")
+        logger.info("Drew %d bounding boxes.", len(df))
 
     # extract filename and extension
     base_name = os.path.basename(image_path)
@@ -355,8 +355,9 @@ def draw_2D_annotations(annotation_path: str,
     # save the output image
     cv2.imwrite(output_image_path, image)
 
-    if debug:
-        print(f"Annotated image saved at: '{output_image_path}'")
+    logger.info("Annotated image saved at: '%s'", output_image_path)
+
+    return output_image_path
 
 
 def from_2D_to_3D_coords(df: pd.DataFrame,
@@ -367,35 +368,35 @@ def from_2D_to_3D_coords(df: pd.DataFrame,
 
     This function interprets 2D coordinates extracted from a particular view
     (``axial``, ``coronal``, or ``sagittal``) and rearranges them into a unified
-    3D coordinate convention using the axis order ``(X, Y, Z)``.  
+    3D coordinate convention using the axis order ``(X, Y, Z)``.
     Both bounding-box style inputs (6 columns) and single-point inputs (3 columns)
     are supported.
 
     Accepted input formats
     ----------------------
-    **Bounding boxes (6 columns)**  
+    **Bounding boxes (6 columns)**
     Required columns:
-        - ``X_MIN``, ``Y_MIN``, ``SLICE_NUMBER_MIN``  
+        - ``X_MIN``, ``Y_MIN``, ``SLICE_NUMBER_MIN``
         - ``X_MAX``, ``Y_MAX``, ``SLICE_NUMBER_MAX``
 
-    **Points (3 columns)**  
+    **Points (3 columns)**
     Required columns:
         - ``X``, ``Y``, ``SLICE_NUMBER``
 
     After transformation, outputs are always standardized to:
 
-    - Bounding boxes → ``['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']``  
-    - Points → ``['X', 'Y', 'Z']``  
+    - Bounding boxes → ``['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']``
+    - Points → ``['X', 'Y', 'Z']``
 
     :param df:
         Input dataframe containing either 3 or 6 coordinate columns, depending on
         whether the input represents points or bounding boxes.
 
     :param view:
-        Anatomical plane from which the coordinates originate.  
+        Anatomical plane from which the coordinates originate.
         Must be one of:
-        - ``'axial'``  
-        - ``'coronal'``  
+        - ``'axial'``
+        - ``'coronal'``
         - ``'sagittal'``
 
     :return:
@@ -403,8 +404,8 @@ def from_2D_to_3D_coords(df: pd.DataFrame,
         ``(X, Y, Z)`` convention.
 
     :raises ValueError:
-        If the dataframe has an invalid number of columns.  
-        If required columns are missing.  
+        If the dataframe has an invalid number of columns.
+        If required columns are missing.
         If ``view`` is not one of the allowed anatomical views.
 
     Example
