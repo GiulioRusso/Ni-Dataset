@@ -18,6 +18,8 @@ from ._helpers import (
 logger = logging.getLogger("nidataset")
 
 
+# Slices
+
 def extract_slices(nii_path: str,
                    output_path: str,
                    view: str = "axial",
@@ -336,6 +338,8 @@ def extract_slices_dataset(nii_folder: str,
 
     return total_slices
 
+
+# Annotations
 
 def extract_annotations(nii_path: str,
                         output_path: str,

@@ -11,6 +11,8 @@ from ._helpers import validate_nifti_path, ensure_dir, strip_nifti_ext
 logger = logging.getLogger("nidataset")
 
 
+# Draw
+
 def draw_3D_boxes(df: pd.DataFrame,
                   nii_path: str,
                   output_path: str,
@@ -359,6 +361,8 @@ def draw_2D_annotations(annotation_path: str,
 
     return output_image_path
 
+
+# Coords conversion
 
 def from_2D_to_3D_coords(df: pd.DataFrame,
                          view: str) -> pd.DataFrame:

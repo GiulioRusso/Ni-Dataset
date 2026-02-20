@@ -24,10 +24,8 @@ from ._helpers import (
 logger = logging.getLogger("nidataset")
 
 
-# ---------------------------------------------------------------------------
-# Intensity normalization
-# ---------------------------------------------------------------------------
 
+# Intensity normalization
 
 def intensity_normalization(nii_path: str,
                             output_path: str,
@@ -165,10 +163,7 @@ def intensity_normalization_dataset(nii_folder: str,
     return results
 
 
-# ---------------------------------------------------------------------------
 # CT Windowing
-# ---------------------------------------------------------------------------
-
 
 # Common CT window presets: (window_center, window_width)
 CT_WINDOW_PRESETS: Dict[str, Tuple[float, float]] = {
@@ -293,10 +288,7 @@ def windowing_dataset(nii_folder: str,
     return results
 
 
-# ---------------------------------------------------------------------------
 # Resample to reference
-# ---------------------------------------------------------------------------
-
 
 def resample_to_reference(nii_path: str,
                           reference_path: str,
@@ -396,10 +388,7 @@ def resample_to_reference_dataset(nii_folder: str,
     return results
 
 
-# ---------------------------------------------------------------------------
 # Apply generic transform
-# ---------------------------------------------------------------------------
-
 
 def apply_transform(nii_path: str,
                     transform_path: str,
@@ -463,10 +452,7 @@ def apply_transform(nii_path: str,
     return out_file
 
 
-# ---------------------------------------------------------------------------
 # Format conversion
-# ---------------------------------------------------------------------------
-
 
 def nifti_to_numpy(nii_path: str,
                    output_path: str,
