@@ -1,7 +1,7 @@
 <div align="center">
 
   <!-- headline -->
-  <center><h1><img align="center" src="./docs/images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
+  <center><h1><img align="center" src="https://raw.githubusercontent.com/GiulioRusso/Ni-Dataset/main/docs/images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
 
   <!-- PyPI badges -->
   <a href="https://pypi.org/project/nidataset/">
@@ -23,7 +23,7 @@
 
 This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data. <br>
 
-<img align="center" src="./docs/images/nidataset.png" width=1000px>
+<img align="center" src="https://raw.githubusercontent.com/GiulioRusso/Ni-Dataset/main/docs/images/nidataset.png" width=1000px>
 
 <br>
 

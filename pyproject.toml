@@ -53,6 +53,9 @@ Documentation = "https://giuliorusso.github.io/Ni-Dataset/"
 Repository = "https://github.com/GiulioRusso/Ni-Dataset"
 Issues = "https://github.com/GiulioRusso/Ni-Dataset/issues"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.dynamic]
 version = {attr = "nidataset._version.__version__"}
 
