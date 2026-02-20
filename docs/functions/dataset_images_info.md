@@ -1,7 +1,7 @@
 ---
 title: dataset_images_info
 parent: Package Functions
-nav_order: 4
+nav_order: 10
 ---
 
 # `dataset_images_info`

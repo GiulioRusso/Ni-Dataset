@@ -1,7 +1,7 @@
 ---
 title: resampling
 parent: Package Functions
-nav_order: 26
+nav_order: 39
 ---
 
 # `resampling`

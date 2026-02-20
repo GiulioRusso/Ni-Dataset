@@ -1,7 +1,7 @@
 ---
 title: numpy_to_nifti
 parent: Package Functions
-nav_order: 46
+nav_order: 28
 ---
 
 # `numpy_to_nifti`

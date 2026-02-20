@@ -1,7 +1,7 @@
 ---
 title: create_slice_montage
 parent: Package Functions
-nav_order: 49
+nav_order: 6
 ---
 
 # `create_slice_montage`

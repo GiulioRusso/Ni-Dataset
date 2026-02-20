@@ -1,7 +1,7 @@
 ---
 title: resample_to_reference
 parent: Package Functions
-nav_order: 42
+nav_order: 37
 ---
 
 # `resample_to_reference`

@@ -1,7 +1,7 @@
 ---
 title: register_annotation
 parent: Package Functions
-nav_order: 20
+nav_order: 33
 ---
 
 # `register_annotation`

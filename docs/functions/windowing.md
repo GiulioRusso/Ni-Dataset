@@ -1,7 +1,7 @@
 ---
 title: windowing
 parent: Package Functions
-nav_order: 40
+nav_order: 45
 ---
 
 # `windowing`

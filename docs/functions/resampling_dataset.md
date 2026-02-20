@@ -1,7 +1,7 @@
 ---
 title: resampling_dataset
 parent: Package Functions
-nav_order: 25
+nav_order: 40
 ---
 
 # `resampling_dataset`

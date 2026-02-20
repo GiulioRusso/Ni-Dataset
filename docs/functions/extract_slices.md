@@ -1,7 +1,7 @@
 ---
 title: extract_slices
 parent: Package Functions
-nav_order: 12
+nav_order: 17
 ---
 
 # `extract_slices`

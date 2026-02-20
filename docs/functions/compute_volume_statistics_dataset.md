@@ -1,7 +1,7 @@
 ---
 title: compute_volume_statistics_dataset
 parent: Package Functions
-nav_order: 36
+nav_order: 5
 ---
 
 # `compute_volume_statistics_dataset`
