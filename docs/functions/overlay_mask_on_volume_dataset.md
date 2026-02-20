@@ -1,7 +1,7 @@
 ---
 title: overlay_mask_on_volume_dataset
 parent: Package Functions
-nav_order: 48
+nav_order: 30
 ---
 
 # `overlay_mask_on_volume_dataset`

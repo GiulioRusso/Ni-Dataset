@@ -1,7 +1,7 @@
 ---
 title: compute_volume_statistics
 parent: Package Functions
-nav_order: 35
+nav_order: 4
 ---
 
 # `compute_volume_statistics`

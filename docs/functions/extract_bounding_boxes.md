@@ -1,7 +1,7 @@
 ---
 title: extract_bounding_boxes
 parent: Package Functions
-nav_order: 10
+nav_order: 16
 ---
 
 # `extract_bounding_boxes`

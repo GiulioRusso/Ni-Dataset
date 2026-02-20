@@ -1,7 +1,7 @@
 ---
 title: mip
 parent: Package Functions
-nav_order: 18
+nav_order: 25
 ---
 
 # `mip`

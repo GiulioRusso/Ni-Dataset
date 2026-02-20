@@ -1,7 +1,7 @@
 ---
 title: resample_to_reference_dataset
 parent: Package Functions
-nav_order: 43
+nav_order: 38
 ---
 
 # `resample_to_reference_dataset`

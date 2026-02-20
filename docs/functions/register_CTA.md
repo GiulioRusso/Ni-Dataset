@@ -1,7 +1,7 @@
 ---
 title: register_CTA
 parent: Package Functions
-nav_order: 22
+nav_order: 31
 ---
 
 # `register_CTA`

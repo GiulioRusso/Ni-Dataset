@@ -1,7 +1,7 @@
 ---
 title: split_dataset
 parent: Package Functions
-nav_order: 37
+nav_order: 43
 ---
 
 # `split_dataset`

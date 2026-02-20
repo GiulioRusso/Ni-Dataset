@@ -1,7 +1,7 @@
 ---
 title: intensity_normalization
 parent: Package Functions
-nav_order: 38
+nav_order: 23
 ---
 
 # `intensity_normalization`

@@ -1,7 +1,7 @@
 ---
 title: crop_and_pad
 parent: Package Functions
-nav_order: 2
+nav_order: 7
 ---
 
 # `crop_and_pad`

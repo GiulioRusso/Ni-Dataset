@@ -1,7 +1,7 @@
 ---
 title: intensity_normalization_dataset
 parent: Package Functions
-nav_order: 39
+nav_order: 24
 ---
 
 # `intensity_normalization_dataset`

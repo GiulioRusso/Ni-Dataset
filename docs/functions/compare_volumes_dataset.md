@@ -1,7 +1,7 @@
 ---
 title: compare_volumes_dataset
 parent: Package Functions
-nav_order: 34
+nav_order: 3
 ---
 
 # `compare_volumes_dataset`

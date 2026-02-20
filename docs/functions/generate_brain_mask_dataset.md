@@ -1,7 +1,7 @@
 ---
 title: generate_brain_mask_dataset
 parent: Package Functions
-nav_order: 14
+nav_order: 21
 ---
 
 # `generate_brain_mask_dataset`

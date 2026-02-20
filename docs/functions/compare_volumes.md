@@ -1,7 +1,7 @@
 ---
 title: compare_volumes
 parent: Package Functions
-nav_order: 33
+nav_order: 2
 ---
 
 # `compare_volumes`

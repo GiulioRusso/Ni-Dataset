@@ -1,7 +1,7 @@
 ---
 title: generate_heatmap_volume
 parent: Package Functions
-nav_order: 16
+nav_order: 22
 ---
 
 # `generate_heatmap_volume`

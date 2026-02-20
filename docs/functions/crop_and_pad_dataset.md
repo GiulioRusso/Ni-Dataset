@@ -1,7 +1,7 @@
 ---
 title: crop_and_pad_dataset
 parent: Package Functions
-nav_order: 1
+nav_order: 8
 ---
 
 # `crop_and_pad_dataset`
