@@ -8,6 +8,7 @@ dist/
 build/
 .eggs/
 *.egg
+*.in
 .mypy_cache/
 .pytest_cache/
 .tox/
