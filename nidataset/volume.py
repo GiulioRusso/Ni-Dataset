@@ -144,11 +144,36 @@ def swap_nifti_views(nii_path: str,
     rot_axes = rotation_axes[(source_view, target_view)]
     swapped_data = np.rot90(swapped_data, k=1, axes=rot_axes)  # k=1 means 90 degrees clockwise
 
-    # Adjust affine matrix to match the new view
+    # Recompute the affine so every output voxel keeps the world-space position of
+    # the input voxel it came from. The data is only relabeled (transpose + 90°
+    # rotation, no interpolation), so the output-index -> input-index mapping is an
+    # exact integer affine. We recover it by pushing a flat index volume through the
+    # identical relabeling and reading back where each output voxel originated.
+    # ponytail: builds one extra int volume the size of the input; negligible vs the
+    #           float64 data already in memory.
+    flat_idx_swapped = np.rot90(
+        np.transpose(np.arange(nii_data.size).reshape(nii_data.shape), new_axes),
+        k=1, axes=rot_axes,
+    )
+
+    def _src_index(out_index: tuple) -> np.ndarray:
+        # input (i, j, k) that maps to the given output voxel
+        return np.array(np.unravel_index(int(flat_idx_swapped[out_index]), nii_data.shape),
+                        dtype=np.float64)
+
+    origin_src = _src_index((0, 0, 0))
+    index_matrix = np.zeros((3, 3), dtype=np.float64)
+    for ax in range(3):
+        if swapped_data.shape[ax] > 1:
+            step = [0, 0, 0]
+            step[ax] = 1
+            index_matrix[:, ax] = _src_index(tuple(step)) - origin_src
+        # axis of length 1: input coordinate is constant, column stays zero
+
     new_affine = affine.copy()
-    new_affine[:3, :3] = affine[:3, :3][new_axes, :]  # Adjust rotation
-    new_affine[:3, 3] = affine[:3, 3]  # Adjust translation
-    new_affine[3, 3] = 1  # Ensure homogeneous coordinates remain intact
+    new_affine[:3, :3] = affine[:3, :3] @ index_matrix
+    new_affine[:3, 3] = affine[:3, :3] @ origin_src + affine[:3, 3]
+    new_affine[3, :] = [0.0, 0.0, 0.0, 1.0]
 
     # update header with new shape
     new_header = header.copy()
