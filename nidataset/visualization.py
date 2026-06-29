@@ -35,8 +35,13 @@ def _normalize_to_uint8(data: np.ndarray) -> np.ndarray:
 def _get_colormap(name: str, n: int = 256) -> np.ndarray:
     """Return an Nx3 uint8 colormap array without requiring matplotlib at import time."""
     try:
-        import matplotlib.cm as cm
-        cmap = cm.get_cmap(name, n)
+        try:
+            # matplotlib >= 3.6 registry (matplotlib.cm.get_cmap was removed in 3.9)
+            from matplotlib import colormaps
+            cmap = colormaps.get_cmap(name)
+        except (ImportError, AttributeError):
+            import matplotlib.cm as cm
+            cmap = cm.get_cmap(name, n)
         colors = (cmap(np.linspace(0, 1, n))[:, :3] * 255).astype(np.uint8)
         return colors
     except ImportError:
