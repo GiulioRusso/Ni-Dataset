@@ -107,17 +107,21 @@ rotated = np.rot90(permuted_data, k=1, axes=rotation_axes)
 
 ### Affine Matrix Update
 
-The affine matrix is updated to maintain correct spatial coordinates:
+The affine matrix is recomputed so that every output voxel keeps the exact
+world-space position of the input voxel it came from. Because the data is only
+relabeled (axis permutation + 90° rotation, no interpolation), the
+output-voxel → input-voxel mapping is an exact integer affine. It is recovered
+by pushing a flat index volume through the identical relabeling and reading back
+where each output voxel originated:
 
 ```python
-# Update rotation component
-new_affine[:3, :3] = original_affine[:3, :3][new_axes, :]
-
-# Preserve translation
-new_affine[:3, 3] = original_affine[:3, 3]
+# index_matrix: output-axis unit steps expressed in input-index space
+# origin_src:   input index of the output origin voxel
+new_affine[:3, :3] = original_affine[:3, :3] @ index_matrix
+new_affine[:3, 3] = original_affine[:3, :3] @ origin_src + original_affine[:3, 3]
 ```
 
-This ensures the volume maintains proper spatial registration.
+This preserves each voxel's world coordinate by construction.
 
 ## Exceptions
 
