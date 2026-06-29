@@ -90,10 +90,10 @@ niqc scans/ --config qc.yaml          # custom thresholds
 
 All thresholds (orientation, affine/isotropy tolerances, spacing/intensity ranges,
 empty-slice definition, allowed labels, containment) live in `QCConfig` and can be
-loaded from a config file. See **[`qc.example.yaml`](qc.example.yaml)** (commented,
-needs the optional `pyyaml` extra) or **[`qc.example.json`](qc.example.json)**
+loaded from a config file. See **[`qc.example.yaml`](docs/qc/qc.example.yaml)** (commented,
+needs the optional `pyyaml` extra) or **[`qc.example.json`](docs/qc/qc.example.json)**
 (no extra dependency). Design rationale and default values are in
-**[`QC_DESIGN.md`](QC_DESIGN.md)**.
+**[`QC_DESIGN.md`](docs/QC_DESIGN.md)**.
 
 ## 🚨 Requirements
 

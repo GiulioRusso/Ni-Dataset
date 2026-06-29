@@ -68,7 +68,7 @@ niqc scans/ --strict --json report.json
 certainly corrupts training. `niqc --strict` returns exit code **1** only when an
 `error` is present (warnings never fail the build), **2** on usage/IO errors,
 **0** otherwise. Full rationale and default thresholds are in
-[`QC_DESIGN.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/QC_DESIGN.md).
+[`QC_DESIGN.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/docs/QC_DESIGN.md).
 
 ## Geometric convention
 
