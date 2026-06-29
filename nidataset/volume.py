@@ -730,13 +730,19 @@ def crop_and_pad(nii_path: str,
     crop_y = max(0, cropped_shape[1] - target_shape[1])
     crop_z = max(0, cropped_shape[2] - target_shape[2])
 
-    # apply cropping if needed
-    if crop_x > 0:
-        cropped_data = cropped_data[crop_x//2:-(crop_x//2 or None), :, :]
-    if crop_y > 0:
-        cropped_data = cropped_data[:, crop_y//2:-(crop_y//2 or None), :]
-    if crop_z > 0:
-        cropped_data = cropped_data[:, :, crop_z//2:-(crop_z//2 or None)]
+    # split each crop into before/after amounts; the extra voxel for an odd crop
+    # is removed from the 'after' side so the result matches target_shape exactly
+    crop_before = np.array([crop_x // 2, crop_y // 2, crop_z // 2])
+    crop_after = np.array([crop_x - crop_before[0],
+                           crop_y - crop_before[1],
+                           crop_z - crop_before[2]])
+
+    # apply centered cropping deterministically (handles odd crops and crop==1)
+    cropped_data = cropped_data[
+        crop_before[0]:cropped_shape[0] - crop_after[0],
+        crop_before[1]:cropped_shape[1] - crop_after[1],
+        crop_before[2]:cropped_shape[2] - crop_after[2],
+    ]
 
     # apply padding if needed
     pad_width = ((pad_x//2, pad_x - pad_x//2),
@@ -744,10 +750,11 @@ def crop_and_pad(nii_path: str,
                  (pad_z//2, pad_z - pad_z//2))
     padded_data = np.pad(cropped_data, pad_width, mode='constant', constant_values=0)
 
-    # adjust the affine matrix to maintain spatial alignment
-    # offset is calculated to match the original position of the cropped region
+    # adjust the affine matrix to maintain spatial alignment.
+    # the first retained data voxel sits at (bounding-box min + centered-crop
+    # offset) in the original grid, and is shifted by the leading pad in the output
     pad_offset = np.array([pad_width[0][0], pad_width[1][0], pad_width[2][0]])
-    crop_offset = np.array([min_coords[0], min_coords[1], min_coords[2]])
+    crop_offset = np.array([min_coords[0], min_coords[1], min_coords[2]]) + crop_before
 
     # adjust affine transformation: shift back by cropping, then by padding
     new_affine = affine.copy()
