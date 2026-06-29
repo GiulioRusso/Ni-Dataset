@@ -46,6 +46,55 @@ Package documentation is available [here](https://giuliorusso.github.io/Ni-Datas
 
 A complete project example that use `nidataset` is available [here](https://github.com/GiulioRusso/CT-manager)
 
+## 🩺 Quality Control (`qc`)
+
+The `nidataset.qc` sub-module validates the *geometric coherence* of NIfTI datasets
+for detection/segmentation. It answers a question no viewer does: **is this dataset
+trustworthy, or is something silently poisoning training?** It catches the bugs that
+never raise — unexpected orientation (LAS vs RAS), a mask shifted a few voxels from
+its image, empty annotations, anisotropic spacing, all-black border slices,
+non-portable `int64` data, NaN/inf — and reports them as inspectable, serializable
+objects.
+
+**Python API** (`nid.qc.<fn>`, every function returns a report):
+
+```python
+import nidataset as nid
+
+# Single volume
+rep = nid.qc.check_volume("scan.nii.gz")
+print(rep.status)                       # 'ok' | 'warning' | 'error'
+print([r.name for r in rep.issues()])   # only the problems
+
+# Image <-> mask <-> annotation coherence (the high-value path)
+rep = nid.qc.check_pair("ct.nii.gz", "brain_mask.nii.gz")
+rep = nid.qc.check_triple("ct.nii.gz", "brain.nii.gz", "lesion.nii.gz")
+
+# Whole dataset + custom thresholds + JSON export
+cfg = nid.qc.QCConfig(expected_orientation="RAS", affine_atol=1e-3)
+ds = nid.qc.check_dataset("scans/", config=cfg)
+print(ds.distributions["orientation"])  # e.g. {'RAS': 287, 'LAS': 13}
+nid.qc.to_json(ds, "qc_report.json")
+```
+
+**CLI** (`niqc`, auto-detects file / folder / CSV of triples):
+
+```bash
+niqc scan.nii.gz                      # single volume, coloured report
+niqc scans/ --strict                  # fail CI (exit 1) on any error
+niqc triples.csv --json report.json   # CSV manifest -> structured JSON
+niqc --pair ct.nii.gz brain.nii.gz    # explicit image/mask
+niqc --triple ct.nii.gz brain.nii.gz lesion.nii.gz --thumbnails qc/
+niqc scans/ --config qc.yaml          # custom thresholds
+```
+
+All thresholds (orientation, affine/isotropy tolerances, spacing/intensity ranges,
+empty-slice definition, allowed labels, containment) live in `QCConfig` and can be
+loaded from a config file. See **[`qc.example.yaml`](qc.example.yaml)** (commented,
+needs the optional `pyyaml` extra) or **[`qc.example.json`](qc.example.json)**
+(no extra dependency). Design rationale and default values are in
+**[`QC_DESIGN.md`](QC_DESIGN.md)**.
+
 ## 🚨 Requirements
 
 ```bash
