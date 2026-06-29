@@ -1,0 +1,61 @@
+# Example QCConfig for `niqc --config qc.example.yaml`.
+# Every value is optional; omitted keys keep their default. Defaults are generic
+# (no CT/MR assumptions). YAML configs need the optional `pyyaml` extra
+# (`pip install nidataset[yaml]`); a .json config works with no extra dependency.
+
+# --- Geometry ---------------------------------------------------------------
+
+# Expected world-axis orientation (nibabel aff2axcodes), e.g. "RAS" or "LAS".
+# null disables the check; orientation is still always reported.
+expected_orientation: null
+
+# Absolute tolerance for affine comparisons (singularity, sform/qform agreement,
+# and the image<->mask<->annotation alignment check). Tighten to catch sub-voxel
+# shifts; loosen if your pipeline legitimately rounds affines.
+affine_atol: 0.0001
+
+# Allowed spacing anisotropy as max/min - 1. 0.05 = up to 5% difference between
+# the largest and smallest voxel edge still counts as isotropic.
+isotropy_tol: 0.05
+
+# Plausible per-axis voxel size in mm [min, max]. Outside -> warning.
+spacing_range: [0.1, 10.0]
+
+# --- Data -------------------------------------------------------------------
+
+# Plausible intensity range [min, max]; null disables. Useful to catch missing
+# clipping/normalization. Leave null for generic datasets.
+intensity_range: null
+
+# Warn when data dtype is float64 (float32 usually suffices, halves size).
+warn_float64: true
+
+# A slice counts as "empty" when its foreground fraction (voxels > this value)
+# is below empty_slice_min_fg_fraction.
+empty_slice_bg_value: 0.0
+empty_slice_min_fg_fraction: 0.0001
+
+# Warn if, on any axis, more than this fraction of slices are empty.
+max_empty_slice_fraction: 0.5
+
+# --- Pair / triple ----------------------------------------------------------
+
+# Labels a mask/annotation may contain. null means binary {0, 1}.
+allowed_labels: null
+
+# Error if more than this fraction of annotation voxels falls outside the mask.
+max_annotation_outside_fraction: 0.0
+
+# Connected components smaller than this (voxels) are flagged as possibly spurious.
+min_component_size: 1
+
+# Warn if the annotation has more than this many connected components.
+max_components: 50
+
+# Warn if the annotation bounding box touches the volume border (possible clipping).
+warn_bbox_touches_border: true
+
+# --- Dataset ----------------------------------------------------------------
+
+# Thread workers for dataset scans (output stays deterministic). 1 = serial.
+max_workers: 4

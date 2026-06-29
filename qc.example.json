@@ -1,0 +1,17 @@
+{
+  "expected_orientation": null,
+  "affine_atol": 0.0001,
+  "isotropy_tol": 0.05,
+  "spacing_range": [0.1, 10.0],
+  "intensity_range": null,
+  "warn_float64": true,
+  "empty_slice_bg_value": 0.0,
+  "empty_slice_min_fg_fraction": 0.0001,
+  "max_empty_slice_fraction": 0.5,
+  "allowed_labels": null,
+  "max_annotation_outside_fraction": 0.0,
+  "min_component_size": 1,
+  "max_components": 50,
+  "warn_bbox_touches_border": true,
+  "max_workers": 4
+}
