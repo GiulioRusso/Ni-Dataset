@@ -709,6 +709,11 @@ def crop_and_pad(nii_path: str,
 
     # find the bounding box of nonzero voxels
     coords = np.argwhere(nii_data > 0)
+    if coords.size == 0:
+        raise ValueError(
+            f"Error: the input volume '{nii_path}' has no positive voxels; "
+            "cannot compute a bounding box for cropping."
+        )
     min_coords = coords.min(axis=0)
     max_coords = coords.max(axis=0)
 

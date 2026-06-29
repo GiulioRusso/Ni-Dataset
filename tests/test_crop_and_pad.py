@@ -61,3 +61,12 @@ def test_preserves_world_position(tmp_path):
     world_after = _voxel_to_world(img.affine, found[0])
 
     np.testing.assert_allclose(world_after, world_before, atol=1e-6)
+
+
+def test_empty_volume_raises_clear_error(tmp_path):
+    # all-zero volume has no bounding box; must raise a clear ValueError instead
+    # of an obscure reduction error from coords.min().
+    data = np.zeros((10, 10, 10), dtype=np.float32)
+    nii_path = _save(tmp_path, data)
+    with pytest.raises(ValueError):
+        nid.crop_and_pad(nii_path, str(tmp_path / "out"), target_shape=(8, 8, 8))
