@@ -36,7 +36,7 @@ cfg = QCConfig(expected_orientation="RAS", affine_atol=1e-3)
 | `max_workers` | `int` | `4` | Thread workers for dataset scans (deterministic output). |
 
 The reasoning behind each default is documented in
-[`QC_DESIGN.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/QC_DESIGN.md).
+[`QC_DESIGN.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/docs/QC_DESIGN.md).
 
 ## Loading from a file
 
@@ -50,8 +50,8 @@ QCConfig.load("qc.yaml")    # requires the optional `pyyaml` extra
   raised if `pyyaml` is missing.
 - Unknown keys raise `ValueError` (typo protection).
 
-See the commented [`qc.example.yaml`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/qc.example.yaml)
-and the dependency-free [`qc.example.json`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/qc.example.json).
+See the commented [`qc.example.yaml`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/docs/qc/qc.example.yaml)
+and the dependency-free [`qc.example.json`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/docs/qc/qc.example.json).
 
 ## Examples
 
