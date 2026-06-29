@@ -41,6 +41,14 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.1.0",
 ]
+# Optional: enables YAML config files for `niqc --config qc.yaml`.
+# JSON configs work with no extra dependency.
+yaml = [
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+niqc = "nidataset.qc.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/GiulioRusso/Ni-Dataset"

@@ -57,6 +57,9 @@ from .visualization import (overlay_mask_on_volume,
                             overlay_mask_on_volume_dataset,
                             create_slice_montage)
 
+# Quality-control subpackage (additive). Exposed as ``nid.qc``.
+from . import qc
+
 __all__ = [
     "__version__",
     # draw
@@ -114,4 +117,6 @@ __all__ = [
     "overlay_mask_on_volume",
     "overlay_mask_on_volume_dataset",
     "create_slice_montage",
+    # quality control
+    "qc",
 ]
