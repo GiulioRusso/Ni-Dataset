@@ -1,19 +1,80 @@
-.DS_Store
-venv/
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-*.egg-info/
-dist/
-build/
-.eggs/
+*.pyd
 *.egg
-*.in
-.mypy_cache/
+*.egg-info/
+*.egg-link
+.eggs/
+site-packages/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env/
+ENV/
+
+# ── Build / distribution ───────────────────────────────────────────────────────
+build/
+dist/
+*.so
+*.dylib
+*.dll
+wheels/
+
+# ── Jupyter ────────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Testing / linting ──────────────────────────────────────────────────────────
 .pytest_cache/
-.tox/
+.mypy_cache/
 .ruff_cache/
-output/
-*.npy
+.coverage
+coverage.xml
+htmlcov/
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ── IDEs ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Medical imaging data (large binaries — never commit) ───────────────────────
+*.nii
+*.nii.gz
 *.npz
-.claude/
+*.npy
+*.mha
+*.mhd
+*.dcm
+*.mnc
+*.hdr
+*.img
+
+# ── Model artefacts ────────────────────────────────────────────────────────────
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# ── Experiment outputs ─────────────────────────────────────────────────────────
+experiments/
+
+# ── Secrets / credentials ──────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+secrets.yaml
+secrets.json
