@@ -21,9 +21,22 @@
 
 <br>
 
-This package provides a set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and various utility functions to facilitate the processing of medical imaging data. <br>
+Comprehensive toolkit for NIfTI medical imaging datasets. Extract 2D slices from 3D volumes, validate data integrity (geometry, orientations, NaN), register and resample, compute statistics, generate visualizations, and build detection/segmentation pipelines—all with zero external ML dependencies. <br>
 
 <img align="center" src="https://raw.githubusercontent.com/GiulioRusso/Ni-Dataset/main/docs/images/nidataset.png" width=1000px>
+
+<br>
+
+## 📚 Features
+
+- **Slicing**: Extract 2D slices (axial, coronal, sagittal) with flexible modes and statistics.
+- **Volume processing**: Crop, pad, generate brain masks, extract bounding boxes, build heatmaps.
+- **Preprocessing**: Skull stripping (FSL), registration to templates, MIP projections, resampling to target volume.
+- **Transforms**: Intensity normalization, windowing (CT presets), spatial resampling.
+- **Analysis**: Compare volumes, compute statistics (volume, surface area), split datasets for train/val/test.
+- **Visualization**: Overlay masks on volumes, create slice montages.
+- **Quality Control**: Validate geometry (affine, orientation, spacing), data integrity (NaN, dtype), and image↔mask coherence. Catch silent bugs (orientation mismatches, affine shifts, anisotropic spacing) that poison training. Python API + CLI (`niqc`).
+- **Utilities**: Dataset metadata extraction, drawing annotations.
 
 <br>
 
@@ -40,60 +53,11 @@ and can be imported as:
 import nidataset as nid
 ```
 
-## 📦 Package documentation
+## 📖 Documentation and Examples
 
-Package documentation is available [here](https://giuliorusso.github.io/Ni-Dataset/).
+Full documentation: [https://giuliorusso.github.io/Ni-Dataset/](https://giuliorusso.github.io/Ni-Dataset/)
 
-A complete project example that use `nidataset` is available [here](https://github.com/GiulioRusso/CT-manager)
-
-## 🩺 Quality Control (`qc`)
-
-The `nidataset.qc` sub-module validates the *geometric coherence* of NIfTI datasets
-for detection/segmentation. It answers a question no viewer does: **is this dataset
-trustworthy, or is something silently poisoning training?** It catches the bugs that
-never raise — unexpected orientation (LAS vs RAS), a mask shifted a few voxels from
-its image, empty annotations, anisotropic spacing, all-black border slices,
-non-portable `int64` data, NaN/inf — and reports them as inspectable, serializable
-objects.
-
-**Python API** (`nid.qc.<fn>`, every function returns a report):
-
-```python
-import nidataset as nid
-
-# Single volume
-rep = nid.qc.check_volume("scan.nii.gz")
-print(rep.status)                       # 'ok' | 'warning' | 'error'
-print([r.name for r in rep.issues()])   # only the problems
-
-# Image <-> mask <-> annotation coherence (the high-value path)
-rep = nid.qc.check_pair("ct.nii.gz", "brain_mask.nii.gz")
-rep = nid.qc.check_triple("ct.nii.gz", "brain.nii.gz", "lesion.nii.gz")
-
-# Whole dataset + custom thresholds + JSON export
-cfg = nid.qc.QCConfig(expected_orientation="RAS", affine_atol=1e-3)
-ds = nid.qc.check_dataset("scans/", config=cfg)
-print(ds.distributions["orientation"])  # e.g. {'RAS': 287, 'LAS': 13}
-nid.qc.to_json(ds, "qc_report.json")
-```
-
-**CLI** (`niqc`, auto-detects file / folder / CSV of triples):
-
-```bash
-niqc scan.nii.gz                      # single volume, coloured report
-niqc scans/ --strict                  # fail CI (exit 1) on any error
-niqc triples.csv --json report.json   # CSV manifest -> structured JSON
-niqc --pair ct.nii.gz brain.nii.gz    # explicit image/mask
-niqc --triple ct.nii.gz brain.nii.gz lesion.nii.gz --thumbnails qc/
-niqc scans/ --config qc.yaml          # custom thresholds
-```
-
-All thresholds (orientation, affine/isotropy tolerances, spacing/intensity ranges,
-empty-slice definition, allowed labels, containment) live in `QCConfig` and can be
-loaded from a config file. See **[`qc.example.yaml`](docs/qc/qc.example.yaml)** (commented,
-needs the optional `pyyaml` extra) or **[`qc.example.json`](docs/qc/qc.example.json)**
-(no extra dependency). Design rationale and default values are in
-**[`QC_DESIGN.md`](docs/QC_DESIGN.md)**.
+Complete example project: [CT-manager](https://github.com/GiulioRusso/CT-manager) (slice extraction, registration, QC validation, preprocessing pipeline)
 
 ## 🚨 Requirements
 
