@@ -27,18 +27,9 @@ Comprehensive toolkit for NIfTI medical imaging datasets. Extract 2D slices from
 
 <br>
 
-## 📚 Features
+Extract 2D slices (all views) and build datasets for ML. Preprocess with skull stripping, registration, resampling, MIP. Transform intensity (normalize, window) and geometry (resample, crop). Analyze (compare, statistics, splits). Visualize (overlays, montages). Validate data integrity (geometry, orientations, NaN, image↔mask coherence) via Python API or CLI (`niqc`). No ML dependencies.
 
-- **Slicing**: Extract 2D slices (axial, coronal, sagittal) with flexible modes and statistics.
-- **Volume processing**: Crop, pad, generate brain masks, extract bounding boxes, build heatmaps.
-- **Preprocessing**: Skull stripping (FSL), registration to templates, MIP projections, resampling to target volume.
-- **Transforms**: Intensity normalization, windowing (CT presets), spatial resampling.
-- **Analysis**: Compare volumes, compute statistics (volume, surface area), split datasets for train/val/test.
-- **Visualization**: Overlay masks on volumes, create slice montages.
-- **Quality Control**: Validate geometry (affine, orientation, spacing), data integrity (NaN, dtype), and image↔mask coherence. Catch silent bugs (orientation mismatches, affine shifts, anisotropic spacing) that poison training. Python API + CLI (`niqc`).
-- **Utilities**: Dataset metadata extraction, drawing annotations.
 
-<br>
 
 ## ⬇️ Installation and Import
 Now, this code is available with PyPI [here](https://pypi.org/project/nidataset/). The package can be installed with:
