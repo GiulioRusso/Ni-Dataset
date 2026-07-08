@@ -27,7 +27,22 @@ Comprehensive toolkit for NIfTI medical imaging datasets. Extract 2D slices from
 
 <br>
 
-Extract 2D slices (all views) and build datasets for ML. Preprocess with skull stripping, registration, resampling, MIP. Transform intensity (normalize, window) and geometry (resample, crop). Analyze (compare, statistics, splits). Visualize (overlays, montages). Validate data integrity (geometry, orientations, NaN, image↔mask coherence) via Python API or CLI (`niqc`). No ML dependencies.
+Extract 2D slices (all views) and build datasets for ML. Preprocess with skull stripping, registration, resampling, MIP. Transform intensity (normalize, window, rescale) and geometry (resample, crop). Analyze (compare, statistics, splits). Visualize (overlays, montages). Validate data integrity (geometry, orientations, NaN, image↔mask coherence) via Python API or CLI (`niqc`). Run quick edits from the shell — rotate, flip, crop, rescale, DICOM↔NIfTI — via the `nii` CLI. No ML dependencies.
+
+### `nii` — quick operations from the terminal
+
+Everyday NIfTI edits without opening Python, mirroring the package API (each command also works on a whole folder):
+
+```bash
+nii rotate scan.nii.gz out/ --k 1 --axes 0 1   # lossless 90° rotation
+nii flip scans/ out/ --axis 0                  # mirror a whole folder
+nii crop-content scan.nii.gz out/ --margin 2   # crop to the foreground box
+nii rescale scan.nii.gz out/ --out-min 0 --out-max 255
+nii to-dicom scan.nii.gz out/                  # NIfTI → DICOM series
+nii from-dicom dicom/case_01/ out/             # DICOM series → NIfTI
+```
+
+Geometric ops update the affine in step with the data, so a flip or rotation never corrupts orientation. See the [docs](https://giuliorusso.github.io/Ni-Dataset/) for the full reference.
 
 
 

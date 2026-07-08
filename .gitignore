@@ -28,6 +28,16 @@ wheels/
 .ipynb_checkpoints/
 *.ipynb
 
+# ── Docs / Jekyll build output (GitHub Pages builds these; never commit) ────────
+docs/_site/
+docs/.jekyll-cache/
+docs/.jekyll-metadata
+docs/.sass-cache/
+docs/Gemfile.lock
+_site/
+.jekyll-cache/
+.sass-cache/
+
 # ── Testing / linting ──────────────────────────────────────────────────────────
 .pytest_cache/
 .mypy_cache/
@@ -71,6 +81,9 @@ htmlcov/
 
 # ── Experiment outputs ─────────────────────────────────────────────────────────
 experiments/
+
+# ── Local demo / scratch data (generated; never commit) ────────────────────────
+demo/
 
 # ── Secrets / credentials ──────────────────────────────────────────────────────
 .env

@@ -19,6 +19,7 @@ from ._helpers import (
     list_nifti_files,
     ensure_dir,
     strip_nifti_ext,
+    run_nifti_dataset,
 )
 
 logger = logging.getLogger("nidataset")
@@ -539,3 +540,195 @@ def numpy_to_nifti(npy_path: str,
     if debug:
         logger.info("NIfTI file saved at: '%s'", out_file)
     return out_file
+
+
+# Linear intensity rescale
+
+def rescale_intensity(nii_path: str,
+                      output_path: str,
+                      out_min: float = 0.0,
+                      out_max: float = 1.0,
+                      in_min: Optional[float] = None,
+                      in_max: Optional[float] = None,
+                      debug: bool = False) -> str:
+    """
+    Linearly rescale a NIfTI volume's intensities to ``[out_min, out_max]``.
+
+    Values are clipped to the input range (``[in_min, in_max]``, defaulting to the
+    volume's own min/max) before mapping. This is the plain linear counterpart to
+    :func:`intensity_normalization` (which offers z-score / percentile / histogram
+    modes) — use it when you just want a fixed output range.
+
+    Saves ``<PREFIX>_rescaled.nii.gz``.
+
+    :param nii_path:    Path to the input NIfTI file.
+    :param output_path: Directory for the output.
+    :param out_min:     Lower bound of the output range.
+    :param out_max:     Upper bound of the output range.
+    :param in_min:      Lower bound of the input range (default: data min).
+    :param in_max:      Upper bound of the input range (default: data max).
+    :param debug:       If ``True``, logs the output path.
+    :returns: Path to the saved rescaled file.
+
+    Example
+    -------
+    >>> from nidataset.transforms import rescale_intensity
+    >>> rescale_intensity("scan.nii.gz", "out/", out_min=0, out_max=255)
+    """
+    if out_max <= out_min:
+        raise ValueError(f"out_max must be > out_min. Got ({out_min}, {out_max}).")
+
+    validate_nifti_path(nii_path)
+    ensure_dir(output_path)
+
+    nii_img = nib.load(nii_path)
+    data = nii_img.get_fdata().astype(np.float64)
+
+    lo = np.min(data) if in_min is None else in_min
+    hi = np.max(data) if in_max is None else in_max
+    if hi <= lo:
+        raise ValueError(f"Input range is empty (in_min={lo}, in_max={hi}).")
+
+    data = np.clip(data, lo, hi)
+    data = (data - lo) / (hi - lo)
+    data = data * (out_max - out_min) + out_min
+
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
+    out_file = os.path.join(output_path, f"{prefix}_rescaled.nii.gz")
+    nib.save(nib.Nifti1Image(data.astype(np.float32), nii_img.affine, nii_img.header), out_file)
+
+    if debug:
+        logger.info("Rescaled volume saved at: '%s' ([%.3g, %.3g] -> [%.3g, %.3g])",
+                    out_file, lo, hi, out_min, out_max)
+    return out_file
+
+
+def rescale_intensity_dataset(nii_folder: str,
+                              output_path: str,
+                              out_min: float = 0.0,
+                              out_max: float = 1.0,
+                              in_min: Optional[float] = None,
+                              in_max: Optional[float] = None,
+                              debug: bool = False) -> List[str]:
+    """Rescale every NIfTI in ``nii_folder``. See :func:`rescale_intensity`."""
+    return run_nifti_dataset(rescale_intensity, nii_folder, output_path,
+                             desc="Rescaling intensities", debug=debug,
+                             out_min=out_min, out_max=out_max,
+                             in_min=in_min, in_max=in_max)
+
+
+# DICOM <-> NIfTI conversion
+
+def dicom_to_nifti(dicom_dir: str,
+                   output_path: str,
+                   debug: bool = False) -> str:
+    """
+    Convert a directory of DICOM slices (one series) into a single NIfTI volume.
+
+    Reads the series with SimpleITK's GDCM reader, preserving spacing, origin,
+    and orientation. The output is named after the DICOM directory.
+
+    Saves ``<DIRNAME>.nii.gz``.
+
+    :param dicom_dir:   Directory holding the ``.dcm`` slices of one series.
+    :param output_path: Directory for the output NIfTI.
+    :param debug:       If ``True``, logs the output path.
+    :returns: Path to the saved NIfTI file.
+
+    :raises FileNotFoundError: If ``dicom_dir`` is not a directory or has no series.
+
+    Example
+    -------
+    >>> from nidataset.transforms import dicom_to_nifti
+    >>> dicom_to_nifti("dicom/case_01/", "out/")
+    """
+    if not os.path.isdir(dicom_dir):
+        raise FileNotFoundError(f"DICOM directory not found: '{dicom_dir}'")
+    ensure_dir(output_path)
+
+    reader = sitk.ImageSeriesReader()
+    file_names = reader.GetGDCMSeriesFileNames(dicom_dir)
+    if not file_names:
+        raise FileNotFoundError(f"No DICOM series found in '{dicom_dir}'.")
+    reader.SetFileNames(file_names)
+    image = reader.Execute()
+
+    name = os.path.basename(os.path.normpath(dicom_dir)) or "series"
+    out_file = os.path.join(output_path, f"{name}.nii.gz")
+    sitk.WriteImage(image, out_file)
+
+    if debug:
+        logger.info("NIfTI written from DICOM series at: '%s' (%d slices)",
+                    out_file, len(file_names))
+    return out_file
+
+
+def nifti_to_dicom(nii_path: str,
+                   output_path: str,
+                   series_description: str = "nidataset",
+                   debug: bool = False) -> str:
+    """
+    Convert a NIfTI volume into a DICOM series (one ``.dcm`` file per slice).
+
+    Geometry (spacing, origin, orientation) is preserved and float data is cast
+    to ``int16`` (standard for CT/MR storage). Slices share a generated
+    SeriesInstanceUID and carry per-slice position/instance tags so viewers load
+    them as one volume.
+
+    Writes ``<PREFIX>/0000.dcm ...`` under ``output_path``.
+
+    :param nii_path:           Path to the input NIfTI file.
+    :param output_path:        Directory under which the series folder is created.
+    :param series_description: DICOM SeriesDescription tag (0008,103E).
+    :param debug:              If ``True``, logs the output directory.
+    :returns: Path to the created DICOM series directory.
+
+    Example
+    -------
+    >>> from nidataset.transforms import nifti_to_dicom
+    >>> nifti_to_dicom("scan.nii.gz", "out/")
+    """
+    import time
+
+    validate_nifti_path(nii_path)
+
+    image = sitk.ReadImage(nii_path)
+    if image.GetPixelID() not in (sitk.sitkInt16, sitk.sitkUInt16):
+        image = sitk.Cast(image, sitk.sitkInt16)
+
+    prefix = strip_nifti_ext(os.path.basename(nii_path))
+    series_dir = os.path.join(output_path, prefix)
+    ensure_dir(series_dir)
+
+    # Shared UID root + tags applied to every slice.
+    now = time.strftime("%Y%m%d")
+    time_str = time.strftime("%H%M%S")
+    series_uid = "1.2.826.0.1.3680043.2.1125." + time_str + ".1." + str(int(time.time()))
+    direction = image.GetDirection()
+    shared_tags = {
+        "0008|0060": "OT",                                   # Modality (Other)
+        "0008|0020": now,                                    # StudyDate
+        "0008|0030": time_str,                               # StudyTime
+        "0008|103e": series_description,                     # SeriesDescription
+        "0020|000e": series_uid,                             # SeriesInstanceUID
+        "0020|0037": "\\".join(str(direction[i]) for i in (0, 3, 6, 1, 4, 7)),  # Orientation
+    }
+
+    writer = sitk.ImageFileWriter()
+    writer.KeepOriginalImageUIDOn()
+
+    depth = image.GetDepth()
+    for z in range(depth):
+        slice_img = image[:, :, z]
+        for tag, value in shared_tags.items():
+            slice_img.SetMetaData(tag, value)
+        position = image.TransformIndexToPhysicalPoint((0, 0, z))
+        slice_img.SetMetaData("0020|0032", "\\".join(str(p) for p in position))  # ImagePosition
+        slice_img.SetMetaData("0020|0013", str(z + 1))                            # InstanceNumber
+        slice_img.SetMetaData("0008|0018", series_uid + "." + str(z + 1))         # SOPInstanceUID
+        writer.SetFileName(os.path.join(series_dir, f"{z:04d}.dcm"))
+        writer.Execute(slice_img)
+
+    if debug:
+        logger.info("DICOM series written at: '%s' (%d slices)", series_dir, depth)
+    return series_dir

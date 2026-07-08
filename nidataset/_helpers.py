@@ -7,7 +7,7 @@ to eliminate duplicated boilerplate across the package.
 
 import os
 import logging
-from typing import List, Generator, Tuple
+from typing import Callable, List, Generator, Tuple
 
 logger = logging.getLogger("nidataset")
 
@@ -73,6 +73,37 @@ def iterate_nifti_dataset(
     """
     for fname in list_nifti_files(folder):
         yield os.path.join(folder, fname), strip_nifti_ext(fname)
+
+
+def run_nifti_dataset(
+    per_file: Callable[..., str],
+    nii_folder: str,
+    output_path: str,
+    desc: str,
+    debug: bool = False,
+    **kwargs,
+) -> List[str]:
+    """
+    Apply *per_file* to every NIfTI in *nii_folder* with a tqdm progress bar.
+
+    *per_file* must accept ``(nii_path, output_path, **kwargs, debug=...)`` and
+    return the output path. Failures are logged and skipped, matching the
+    per-module ``*_dataset`` idiom.
+
+    :returns: List of output paths for the files that succeeded.
+    """
+    from tqdm import tqdm  # local import: keeps import-time deps minimal
+
+    nii_files = list_nifti_files(nii_folder)
+    ensure_dir(output_path)
+    results: List[str] = []
+    for nii_file in tqdm(nii_files, desc=desc, unit="file"):
+        nii_path = os.path.join(nii_folder, nii_file)
+        try:
+            results.append(per_file(nii_path, output_path, debug=debug, **kwargs))
+        except Exception as e:  # noqa: BLE001 - report and continue over the dataset
+            logger.warning("Error processing %s: %s", nii_file, e)
+    return results
 
 
 def validate_view(view: str) -> None:

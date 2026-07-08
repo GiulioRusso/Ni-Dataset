@@ -49,6 +49,7 @@ yaml = [
 
 [project.scripts]
 niqc = "nidataset.qc.cli:main"
+nii = "nidataset.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/GiulioRusso/Ni-Dataset"
