@@ -23,9 +23,6 @@ import nidataset as nid
 manifest = nid.run_pipeline("pipeline.yaml")
 ```
 
-> **Note:** this replaces the former [CT-Manager](https://github.com/GiulioRusso/CT-manager) repository.
-> See [Migrating from CT-Manager](#migrating-from-ct-manager).
-
 ## Try it in 10 seconds
 
 The repository ships a complete example on synthetic data (two tiny "heads" with
@@ -188,23 +185,19 @@ manifest is written, and the run stops (`nii run` exits with code `2`).
 - **QC first**: keep `qc_dataset` as the first step; check `qc_dataset.json` for
   orientation or spacing outliers before trusting the rest of the run.
 
-## Migrating from CT-Manager
+## Common recipes
 
-CT-Manager's `configs/paths.yaml` becomes the `dataset:` block, and each `--task`
-becomes a step:
+| Goal | Step |
+|------|------|
+| 2D slices in every view | `op: extract_slices`, `nii_folder: "{images}"`, `views: [axial, coronal, sagittal]`, `saving_mode: view` |
+| Mask slices next to the images | `op: extract_slices`, `name: extract_masks`, `nii_folder: "{masks}"` |
+| Per-slice annotation CSVs | `op: extract_annotations`, `nii_folder: "{annotations}"`, `data_mode: radius` |
+| Check annotations visually | `op: draw_annotations` with `{view}` in `image_path` / `annotation_path` |
+| Skull stripping | `op: skull_strip` (needs FSL) |
+| Template registration + labels | `op: register`, then `register_mask` and `register_annotation` |
+| Maximum intensity projection | `op: mip` |
+| Fixed volume size | `op: resample`, `desired_volume: [224, 224, 128]` |
+| QC of one scan / whole dataset | `op: qc_volume` / `op: qc_dataset` |
 
-| CT-Manager `--task` | Pipeline step |
-|---------------------|---------------|
-| `extract_slices` | `op: extract_slices`, `nii_folder: "{images}"`, `views: [axial, coronal, sagittal]` |
-| `extract_masks` | `op: extract_slices`, `name: extract_masks`, `nii_folder: "{masks}"` |
-| `extract_annotations` | `op: extract_annotations`, `data_mode: radius` |
-| `debug_draw` | `op: draw_annotations` with `{view}` in `image_path` / `annotation_path` |
-| `skulling` | `op: skull_strip` |
-| `registration` | `op: register`, then `register_mask` and `register_annotation` |
-| `mip` | `op: mip` |
-| `resampling` | `op: resample`, `desired_volume: [224, 224, 128]` |
-| `qc_check` | `op: qc_volume` (takes a single file) |
-| `qc_dataset` | `op: qc_dataset` |
-
-`python3 main.py --task=registration` becomes `nii run pipeline.yaml --only register`.
-To switch between datasets, keep one config file per dataset.
+Rerun a single stage with `nii run pipeline.yaml --only register`. To process
+several datasets, keep one config file per dataset.

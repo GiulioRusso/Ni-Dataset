@@ -2,7 +2,6 @@
 
 End-to-end CT dataset pipeline — QC, slice/mask/annotation extraction, annotation
 overlay, registration to a template, MIP, resampling — driven by one config file.
-This replaces the former [CT-Manager](https://github.com/GiulioRusso/CT-manager) repo.
 
 ```bash
 pip install "nidataset[yaml]"   # YAML configs; .json configs need no extra
@@ -34,7 +33,7 @@ steps:                   # run in order
 - The whole config is validated before anything runs: unknown ops, bad kwargs,
   unknown placeholders, missing input paths and missing FSL are all reported at once.
 - Rerun part of it with `nii run pipeline.yaml --only register,register_mask`
-  (outputs of skipped steps must already exist). This replaces CT-Manager's `--task`.
+  (outputs of skipped steps must already exist).
 
 Full reference: [Pipelines documentation](https://giuliorusso.github.io/Ni-Dataset/pipeline/).
 

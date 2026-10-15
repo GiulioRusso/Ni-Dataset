@@ -12,7 +12,7 @@ All notable changes to this project are documented here. The format follows
   pipeline.yaml` or `nid.run_pipeline(path)`. The whole config is validated
   before anything runs; each run writes `run_manifest.json` (nidataset version,
   config hash, per-step timing and outputs). `nii run --only STEP[,STEP]` reruns
-  selected steps. Replaces the CT-Manager repo.
+  selected steps.
 - `examples/ct_pipeline/`: end-to-end CT example (QC, slices, annotations,
   registration, MIP, resampling) with a synthetic data generator, so it runs
   in seconds without patient data.

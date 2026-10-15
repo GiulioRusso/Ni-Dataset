@@ -52,7 +52,7 @@ nii run pipeline.yaml            # QC -> slices -> registration -> ... + run_man
 ## 📖 Documentation and examples
 
 - Full documentation: [giuliorusso.github.io/Ni-Dataset](https://giuliorusso.github.io/Ni-Dataset/)
-- End-to-end CT pipeline: [`examples/ct_pipeline/`](https://github.com/GiulioRusso/Ni-Dataset/tree/main/examples/ct_pipeline) (formerly the CT-Manager repo)
+- End-to-end CT pipeline: [`examples/ct_pipeline/`](https://github.com/GiulioRusso/Ni-Dataset/tree/main/examples/ct_pipeline)
 
 Dependencies are declared in [`pyproject.toml`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/pyproject.toml). Skull stripping additionally needs a local [FSL](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/install/index) installation.
 
