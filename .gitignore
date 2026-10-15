@@ -84,6 +84,8 @@ experiments/
 
 # ── Local demo / scratch data (generated; never commit) ────────────────────────
 demo/
+examples/ct_pipeline/data/
+examples/ct_pipeline/output/
 
 # ── Secrets / credentials ──────────────────────────────────────────────────────
 .env

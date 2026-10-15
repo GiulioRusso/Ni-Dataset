@@ -1,0 +1,97 @@
+# End-to-end CT pipeline (formerly the CT-Manager repo).
+#
+#   python make_synthetic.py      # tiny synthetic dataset in ./data
+#   nii run pipeline.yaml         # or: python -c "import nidataset as nid; nid.run_pipeline('pipeline.yaml')"
+#
+# Relative paths resolve against this file's folder. In step kwargs, "{name}"
+# expands to a dataset path, "{output}" to the run folder and "{view}" to the
+# current view (steps with `views:` run once per view). Quote anything with
+# braces: YAML would otherwise read {...} as a mapping.
+# Every step writes to {output}/<step name> unless it sets output_path.
+
+dataset:
+  images: data/images
+  masks: data/masks
+  annotations: data/annotations
+  template: data/template/template.nii.gz
+  template_mask: data/template/template_mask.nii.gz
+
+output: output
+
+steps:
+  # QC first: catches orientation / spacing / NaN problems before anything else.
+  - op: qc_dataset
+    dataset_path: "{images}"
+
+  - op: qc_volume
+    nii_path: "{images}/case01.nii.gz"
+
+  - op: extract_slices
+    views: [axial, coronal, sagittal]
+    nii_folder: "{images}"
+    saving_mode: view
+    save_stats: true
+
+  - op: extract_slices
+    name: extract_masks
+    views: [axial, coronal, sagittal]
+    nii_folder: "{masks}"
+    saving_mode: view
+    save_stats: true
+
+  - op: extract_annotations
+    views: [axial, coronal, sagittal]
+    nii_folder: "{annotations}"
+    saving_mode: view
+    data_mode: radius
+    save_stats: true
+
+  # Sanity check: overlay the extracted annotation on its slice, per view.
+  - op: draw_annotations
+    views: [axial, coronal, sagittal]
+    image_path: "{output}/extract_slices/{view}/case01_{view}_015.tif"
+    annotation_path: "{output}/extract_annotations/{view}/case01_{view}_015.csv"
+
+  # Skull stripping needs FSL (`bet`, `fslmaths` on PATH). Uncomment to enable;
+  # the run fails up front with an install hint if FSL is missing.
+  # - op: skull_strip
+  #   nii_folder: "{images}"
+  #   saving_mode: folder
+  #   cleanup: true
+
+  - op: register
+    nii_folder: "{images}"
+    mask_folder: "{masks}"
+    template_path: "{template}"
+    template_mask_path: "{template_mask}"
+    saving_mode: folder
+    cleanup: true
+    # Tuned for the tiny synthetic volumes (defaults: 2000 iterations, 0.5 sampling).
+    # Drop both for real scans.
+    number_iterations: 20
+    metric_sampling_percentage: 1.0
+
+  # Reuse the transforms written by the `register` step.
+  - op: register_mask
+    mask_folder: "{masks}"
+    transform_folder: "{output}/register/transforms"
+    registered_folder: "{output}/register/registered"
+    saving_mode: folder
+
+  - op: register_annotation
+    annotation_folder: "{annotations}"
+    transform_folder: "{output}/register/transforms"
+    registered_folder: "{output}/register/registered"
+    recalculate_bbox: false
+    saving_mode: folder
+
+  - op: mip
+    nii_folder: "{images}"
+    view: axial
+    saving_mode: view
+    window_size: 5
+
+  - op: resample
+    nii_folder: "{images}"
+    desired_volume: [32, 32, 24]
+    saving_mode: folder

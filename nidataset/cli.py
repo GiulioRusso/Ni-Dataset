@@ -2,7 +2,8 @@
 ``nii`` — command-line entry point for quick NIfTI operations.
 
 Thin wrapper over the Python API: rotate, flip, crop, crop-to-content, rescale
-intensities, and convert to/from DICOM, straight from the shell. For the
+intensities, convert to/from DICOM, and run config-driven pipelines
+(``nii run pipeline.yaml``), straight from the shell. For the
 NIfTI-input commands, PATH may be a single file or a folder (processed as a
 dataset). Every command prints the output path(s) it wrote.
 
@@ -26,7 +27,7 @@ def _run_on_path(path: str, output_path: str, single, dataset, **kwargs) -> list
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="nii",
-        description="Quick NIfTI operations (rotate, flip, crop, rescale, DICOM conversion).",
+        description="Quick NIfTI operations (rotate, flip, crop, rescale, DICOM conversion, pipelines).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
@@ -37,6 +38,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  nii rescale scan.nii.gz out/ --out-min 0 --out-max 255\n"
             "  nii to-dicom scan.nii.gz out/\n"
             "  nii from-dicom dicom/case_01/ out/\n"
+            "  nii run pipeline.yaml [--only register]\n"
         ),
     )
     sub = p.add_subparsers(dest="command", required=True)
@@ -94,6 +96,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument("--num-slices", type=int, default=16, help="Slices in the montage (default 16).")
     sp.add_argument("--cols", type=int, default=4, help="Grid columns (default 4).")
+
+    sp = sub.add_parser("run", help="Run a YAML/JSON pipeline config (see nidataset.pipeline).")
+    sp.add_argument("config", help="Pipeline file (.yaml/.yml needs PyYAML; .json works as is).")
+    sp.add_argument(
+        "--only",
+        metavar="STEP[,STEP]",
+        help="Run only these step names (comma-separated), e.g. --only register,register_mask.",
+    )
 
     return p
 
@@ -173,9 +183,15 @@ def main(argv: list[str] | None = None) -> int:
                     args.path, args.output_path, view=args.view, num_slices=args.num_slices, cols=args.cols
                 )
             ]
+        elif args.command == "run":
+            from .pipeline import run_pipeline
+            from .pipeline.runner import MANIFEST_NAME
+
+            manifest = run_pipeline(args.config, only=args.only.split(",") if args.only else None)
+            outs = [os.path.join(manifest["output"], MANIFEST_NAME)]
         else:  # pragma: no cover - argparse enforces a valid command
             raise ValueError(f"unknown command '{args.command}'")
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, RuntimeError, ImportError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
