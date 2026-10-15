@@ -1,32 +1,27 @@
-import os
-import logging
-from tqdm import tqdm
 import csv
-import subprocess
+import logging
+import os
+from typing import Optional
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 import scipy.ndimage as ndi
 from scipy.ndimage import label as ndi_label
-from skimage.morphology import binary_closing, ball
 from skimage.filters import threshold_otsu
+from skimage.morphology import ball, binary_closing
+from tqdm import tqdm
 
 from ._helpers import (
-    validate_nifti_path,
-    list_nifti_files,
     ensure_dir,
+    list_nifti_files,
     strip_nifti_ext,
-    is_nifti,
+    validate_nifti_path,
 )
 
 logger = logging.getLogger("nidataset")
 
 
-def swap_nifti_views(nii_path: str,
-                     output_path: str,
-                     source_view: str,
-                     target_view: str,
-                     debug: bool = False) -> str:
+def swap_nifti_views(nii_path: str, output_path: str, source_view: str, target_view: str, debug: bool = False) -> str:
     """
     Swaps the anatomical view of a 3D NIfTI image by reordering axes, applying
     a 90-degree rotation, and updating the affine matrix to preserve orientation.
@@ -90,12 +85,11 @@ def swap_nifti_views(nii_path: str,
     validate_nifti_path(nii_path)
 
     # validate the view parameters
-    valid_views = {'axial', 'coronal', 'sagittal'}
+    valid_views = {"axial", "coronal", "sagittal"}
     if source_view not in valid_views:
         raise ValueError(f"Error: The source view must be one of {valid_views}. Got '{source_view}' instead.")
     if target_view not in valid_views:
         raise ValueError(f"Error: The target view must be one of {valid_views}. Got '{target_view}' instead.")
-
 
     # create output dir if it does not exist
     ensure_dir(output_path)
@@ -114,25 +108,27 @@ def swap_nifti_views(nii_path: str,
     valid_swaps = {
         ("axial", "coronal"): (0, 2, 1),  # swap Y and Z → (X, Z, Y)
         ("coronal", "axial"): (0, 2, 1),  # swap back (X, Z, Y) → (X, Y, Z)
-        ("axial", "sagittal"): (2, 1, 0), # swap X and Z → (Z, Y, X)
-        ("sagittal", "axial"): (2, 1, 0), # swap back (Z, Y, X) → (X, Y, Z)
-        ("coronal", "sagittal"): (1, 0, 2), # swap X and Y → (Y, X, Z)
-        ("sagittal", "coronal"): (1, 0, 2)  # swap back (Y, X, Z) → (X, Y, Z)
+        ("axial", "sagittal"): (2, 1, 0),  # swap X and Z → (Z, Y, X)
+        ("sagittal", "axial"): (2, 1, 0),  # swap back (Z, Y, X) → (X, Y, Z)
+        ("coronal", "sagittal"): (1, 0, 2),  # swap X and Y → (Y, X, Z)
+        ("sagittal", "coronal"): (1, 0, 2),  # swap back (Y, X, Z) → (X, Y, Z)
     }
 
     # Define necessary rotations (90 degrees clockwise)
     rotation_axes = {
         ("axial", "coronal"): (1, 2),  # Rotate around X
         ("coronal", "axial"): (1, 2),  # Rotate back around X
-        ("axial", "sagittal"): (0, 2), # Rotate around Y
-        ("sagittal", "axial"): (0, 2), # Rotate back around Y
-        ("coronal", "sagittal"): (0, 1), # Rotate around Z
-        ("sagittal", "coronal"): (0, 1)  # Rotate back around Z
+        ("axial", "sagittal"): (0, 2),  # Rotate around Y
+        ("sagittal", "axial"): (0, 2),  # Rotate back around Y
+        ("coronal", "sagittal"): (0, 1),  # Rotate around Z
+        ("sagittal", "coronal"): (0, 1),  # Rotate back around Z
     }
 
     # check if the provided view swap is valid
     if (source_view, target_view) not in valid_swaps:
-        raise ValueError("Error: Invalid view swap. Choices are: axial ↔ coronal, axial ↔ sagittal, coronal ↔ sagittal.")
+        raise ValueError(
+            "Error: Invalid view swap. Choices are: axial ↔ coronal, axial ↔ sagittal, coronal ↔ sagittal."
+        )
 
     # get the new axis order
     new_axes = valid_swaps[(source_view, target_view)]
@@ -153,13 +149,13 @@ def swap_nifti_views(nii_path: str,
     #           float64 data already in memory.
     flat_idx_swapped = np.rot90(
         np.transpose(np.arange(nii_data.size).reshape(nii_data.shape), new_axes),
-        k=1, axes=rot_axes,
+        k=1,
+        axes=rot_axes,
     )
 
     def _src_index(out_index: tuple) -> np.ndarray:
         # input (i, j, k) that maps to the given output voxel
-        return np.array(np.unravel_index(int(flat_idx_swapped[out_index]), nii_data.shape),
-                        dtype=np.float64)
+        return np.array(np.unravel_index(int(flat_idx_swapped[out_index]), nii_data.shape), dtype=np.float64)
 
     origin_src = _src_index((0, 0, 0))
     index_matrix = np.zeros((3, 3), dtype=np.float64)
@@ -198,12 +194,14 @@ def swap_nifti_views(nii_path: str,
     return swapped_filename
 
 
-def extract_bounding_boxes(mask_path: str,
-                           output_path: str,
-                           voxel_size: tuple = (3.0, 3.0, 3.0),
-                           volume_threshold: float = 1000.0,
-                           mask_value: int = 1,
-                           debug: bool = False) -> str:
+def extract_bounding_boxes(
+    mask_path: str,
+    output_path: str,
+    voxel_size: tuple = (3.0, 3.0, 3.0),
+    volume_threshold: float = 1000.0,
+    mask_value: int = 1,
+    debug: bool = False,
+) -> str:
     """
     Extracts 3D bounding boxes from a segmentation mask by identifying connected
     components, filtering out small regions, and generating a bounding-box
@@ -313,7 +311,7 @@ def extract_bounding_boxes(mask_path: str,
     for bbox in bounding_boxes:
         min_x, min_y, min_z = bbox[0]
         max_x, max_y, max_z = bbox[1]
-        bounding_box_image[min_x:max_x + 1, min_y:max_y + 1, min_z:max_z + 1] = 255
+        bounding_box_image[min_x : max_x + 1, min_y : max_y + 1, min_z : max_z + 1] = 255
 
     # save the bounding box NIfTI file
     bbox_nifti = nib.Nifti1Image(bounding_box_image, mask_img.affine)
@@ -321,18 +319,23 @@ def extract_bounding_boxes(mask_path: str,
     nib.save(bbox_nifti, bbox_filename)
 
     # debug logging
-    logger.info(f"Input file: '{mask_path}' | Output path: '{bbox_filename}' | Total bounding boxes extracted: {len(bounding_boxes)}")
+    logger.info(
+        f"Input file: '{mask_path}' | Output path: '{bbox_filename}' | "
+        f"Total bounding boxes extracted: {len(bounding_boxes)}"
+    )
 
     return bbox_filename
 
 
-def extract_bounding_boxes_dataset(mask_folder: str,
-                                   output_path: str,
-                                   voxel_size: tuple = (3.0, 3.0, 3.0),
-                                   volume_threshold: float = 1000.0,
-                                   mask_value: int = 1,
-                                   save_stats: bool = True,
-                                   debug: bool = False) -> list:
+def extract_bounding_boxes_dataset(
+    mask_folder: str,
+    output_path: str,
+    voxel_size: tuple = (3.0, 3.0, 3.0),
+    volume_threshold: float = 1000.0,
+    mask_value: int = 1,
+    save_stats: bool = True,
+    debug: bool = False,
+) -> list:
     """
     Extracts 3D bounding boxes from all segmentation masks in a dataset folder and
     saves a NIfTI file for each case:
@@ -436,7 +439,9 @@ def extract_bounding_boxes_dataset(mask_folder: str,
             continue  # skip this file if an error occurs
 
         # call extract_bounding_boxes function (without modifications)
-        result_path = extract_bounding_boxes(mask_path, output_path, voxel_size, volume_threshold, mask_value, debug=False)
+        result_path = extract_bounding_boxes(
+            mask_path, output_path, voxel_size, volume_threshold, mask_value, debug=False
+        )
         output_files.append(result_path)
 
     # save statistics if enabled
@@ -456,11 +461,9 @@ def extract_bounding_boxes_dataset(mask_folder: str,
     return output_files
 
 
-def generate_brain_mask(nii_path: str,
-                        output_path: str,
-                        threshold: tuple = None,
-                        closing_radius: int = 3,
-                        debug: bool = False) -> str:
+def generate_brain_mask(
+    nii_path: str, output_path: str, threshold: Optional[tuple] = None, closing_radius: int = 3, debug: bool = False
+) -> str:
     """
     Generates a brain mask from a brain CTA scan in NIfTI format and saves the file as:
 
@@ -540,7 +543,9 @@ def generate_brain_mask(nii_path: str,
         otsu_thresh = threshold_otsu(nii_data[nii_data > 0])  # ignore background
         lower_bound = otsu_thresh * 0.5  # relax lower bound to capture soft tissue
         upper_bound = otsu_thresh * 2.0  # allow brighter regions
-        logger.debug(f"Using Otsu's threshold: {otsu_thresh:.2f} | Adjusted range: ({lower_bound:.2f}, {upper_bound:.2f})")
+        logger.debug(
+            f"Using Otsu's threshold: {otsu_thresh:.2f} | Adjusted range: ({lower_bound:.2f}, {upper_bound:.2f})"
+        )
     else:
         lower_bound, upper_bound = threshold
 
@@ -554,7 +559,7 @@ def generate_brain_mask(nii_path: str,
     brain_mask = binary_closing(binary_mask_filled, ball(closing_radius))
 
     # extract the largest connected component (assumed to be the brain)
-    labeled_mask, num_components = ndi.label(brain_mask)
+    labeled_mask, _num_components = ndi.label(brain_mask)
     component_sizes = np.bincount(labeled_mask.ravel())
     largest_component_label = np.argmax(component_sizes[1:]) + 1  # ignore background label (0)
     brain_mask = labeled_mask == largest_component_label
@@ -578,11 +583,9 @@ def generate_brain_mask(nii_path: str,
     return mask_filename
 
 
-def generate_brain_mask_dataset(nii_folder: str,
-                                output_path: str,
-                                threshold: tuple = None,
-                                closing_radius: int = 3,
-                                debug: bool = False) -> list:
+def generate_brain_mask_dataset(
+    nii_folder: str, output_path: str, threshold: Optional[tuple] = None, closing_radius: int = 3, debug: bool = False
+) -> list:
     """
     Generates brain masks for all brain CTA scans inside a dataset folder and
     saves each output as:
@@ -658,10 +661,7 @@ def generate_brain_mask_dataset(nii_folder: str,
     return output_files
 
 
-def crop_and_pad(nii_path: str,
-                 output_path: str,
-                 target_shape: tuple = (128, 128, 128),
-                 debug: bool = False) -> str:
+def crop_and_pad(nii_path: str, output_path: str, target_shape: tuple = (128, 128, 128), debug: bool = False) -> str:
     """
     Finds the minimum bounding box around a CTA scan, crops the volume, pads it
     to a fixed target size, and preserves spatial orientation. Saves the result as:
@@ -736,16 +736,15 @@ def crop_and_pad(nii_path: str,
     coords = np.argwhere(nii_data > 0)
     if coords.size == 0:
         raise ValueError(
-            f"Error: the input volume '{nii_path}' has no positive voxels; "
-            "cannot compute a bounding box for cropping."
+            f"Error: the input volume '{nii_path}' has no positive voxels; cannot compute a bounding box for cropping."
         )
     min_coords = coords.min(axis=0)
     max_coords = coords.max(axis=0)
 
     # crop the image to the bounding box
-    cropped_data = nii_data[min_coords[0]:max_coords[0]+1,
-                            min_coords[1]:max_coords[1]+1,
-                            min_coords[2]:max_coords[2]+1]
+    cropped_data = nii_data[
+        min_coords[0] : max_coords[0] + 1, min_coords[1] : max_coords[1] + 1, min_coords[2] : max_coords[2] + 1
+    ]
 
     # get the new cropped shape
     cropped_shape = cropped_data.shape
@@ -763,22 +762,18 @@ def crop_and_pad(nii_path: str,
     # split each crop into before/after amounts; the extra voxel for an odd crop
     # is removed from the 'after' side so the result matches target_shape exactly
     crop_before = np.array([crop_x // 2, crop_y // 2, crop_z // 2])
-    crop_after = np.array([crop_x - crop_before[0],
-                           crop_y - crop_before[1],
-                           crop_z - crop_before[2]])
+    crop_after = np.array([crop_x - crop_before[0], crop_y - crop_before[1], crop_z - crop_before[2]])
 
     # apply centered cropping deterministically (handles odd crops and crop==1)
     cropped_data = cropped_data[
-        crop_before[0]:cropped_shape[0] - crop_after[0],
-        crop_before[1]:cropped_shape[1] - crop_after[1],
-        crop_before[2]:cropped_shape[2] - crop_after[2],
+        crop_before[0] : cropped_shape[0] - crop_after[0],
+        crop_before[1] : cropped_shape[1] - crop_after[1],
+        crop_before[2] : cropped_shape[2] - crop_after[2],
     ]
 
     # apply padding if needed
-    pad_width = ((pad_x//2, pad_x - pad_x//2),
-                 (pad_y//2, pad_y - pad_y//2),
-                 (pad_z//2, pad_z - pad_z//2))
-    padded_data = np.pad(cropped_data, pad_width, mode='constant', constant_values=0)
+    pad_width = ((pad_x // 2, pad_x - pad_x // 2), (pad_y // 2, pad_y - pad_y // 2), (pad_z // 2, pad_z - pad_z // 2))
+    padded_data = np.pad(cropped_data, pad_width, mode="constant", constant_values=0)
 
     # adjust the affine matrix to maintain spatial alignment.
     # the first retained data voxel sits at (bounding-box min + centered-crop
@@ -808,16 +803,17 @@ def crop_and_pad(nii_path: str,
 
     # debug logging
     logger.info(f"Input File: '{nii_path}' | Output Path: '{output_path}'")
-    logger.debug(f"Original Shape: {nii_data.shape} | Cropped Shape: {cropped_shape} | Final Shape: {padded_data.shape}")
+    logger.debug(
+        f"Original Shape: {nii_data.shape} | Cropped Shape: {cropped_shape} | Final Shape: {padded_data.shape}"
+    )
     logger.info(f"Processed CTA Saved at: {processed_filename}")
 
     return processed_filename
 
 
-def crop_and_pad_dataset(nii_folder: str,
-                         output_path: str,
-                         target_shape: tuple = (128, 128, 128),
-                         save_stats: bool = False) -> list:
+def crop_and_pad_dataset(
+    nii_folder: str, output_path: str, target_shape: tuple = (128, 128, 128), save_stats: bool = False
+) -> list:
     """
     Processes all CTA scans inside a dataset folder, applies ``crop_and_pad`` to each
     volume, and saves every output as:
@@ -923,13 +919,15 @@ def crop_and_pad_dataset(nii_folder: str,
     return output_files
 
 
-def generate_heatmap_volume(nii_folder: str,
-                            output_path: str,
-                            output_filename: str = "heatmap_volume.nii.gz",
-                            use_mean: bool = True,
-                            clip_to_input_range: bool = True,
-                            normalize: bool = False,
-                            debug: bool = False) -> str:
+def generate_heatmap_volume(
+    nii_folder: str,
+    output_path: str,
+    output_filename: str = "heatmap_volume.nii.gz",
+    use_mean: bool = True,
+    clip_to_input_range: bool = True,
+    normalize: bool = False,
+    debug: bool = False,
+) -> str:
     """
     Generates a synthetic heatmap volume by averaging or summing all NIfTI files in a folder.
     The resulting volume represents the spatial probability/density across all inputs.
@@ -1067,11 +1065,11 @@ def generate_heatmap_volume(nii_folder: str,
                 global_min = min(global_min, file_min)
                 global_max = max(global_max, file_max)
 
-                logger.debug(f"File {idx+1}/{len(nii_files)}: '{nii_file}' | Range: [{file_min:.2f}, {file_max:.2f}]")
+                logger.debug(f"File {idx + 1}/{len(nii_files)}: '{nii_file}' | Range: [{file_min:.2f}, {file_max:.2f}]")
 
         except Exception as e:
             tqdm.write(f"Error processing file '{nii_file}': {e}")
-            raise ValueError(f"Failed to process file '{nii_file}': {e}")
+            raise ValueError(f"Failed to process file '{nii_file}': {e}") from e
 
     # count total files processed
     num_files = len(nii_files)
@@ -1094,28 +1092,24 @@ def generate_heatmap_volume(nii_folder: str,
         max_val = np.max(accumulated_volume)
         if max_val > min_val:  # avoid division by zero
             accumulated_volume = (accumulated_volume - min_val) / (max_val - min_val)
-            logger.debug(f"Normalized output to [0, 1] range")
+            logger.debug("Normalized output to [0, 1] range")
         else:
             logger.debug("Skipping normalization (volume is constant)")
 
     # create new NIfTI image with the accumulated heatmap
-    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32),
-                                   reference_affine,
-                                   header=reference_header)
+    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32), reference_affine, header=reference_header)
 
     # update header with correct data type
     new_header = reference_header.copy()
     new_header.set_data_dtype(np.float32)
-    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32),
-                                   reference_affine,
-                                   header=new_header)
+    heatmap_img = nib.Nifti1Image(accumulated_volume.astype(np.float32), reference_affine, header=new_header)
 
     # save the heatmap volume
     output_file = os.path.join(output_path, output_filename)
     nib.save(heatmap_img, output_file)
 
     # debug logging
-    logger.info(f"Heatmap generation complete:")
+    logger.info("Heatmap generation complete:")
     logger.info(f"  Input folder: '{nii_folder}'")
     logger.info(f"  Output file: '{output_file}'")
     logger.info(f"  Total files processed: {len(nii_files)}")

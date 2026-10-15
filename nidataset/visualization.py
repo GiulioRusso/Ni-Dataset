@@ -4,20 +4,19 @@ Visualization routines for NIfTI volumes.
 Provides mask overlay generation and slice montage creation.
 """
 
-import os
 import logging
-from typing import List, Optional, Tuple
+import os
 
 import nibabel as nib
 import numpy as np
-from tqdm import tqdm
 from PIL import Image
+from tqdm import tqdm
 
 from ._helpers import (
-    validate_nifti_path,
-    list_nifti_files,
     ensure_dir,
+    list_nifti_files,
     strip_nifti_ext,
+    validate_nifti_path,
     validate_view,
 )
 
@@ -38,9 +37,11 @@ def _get_colormap(name: str, n: int = 256) -> np.ndarray:
         try:
             # matplotlib >= 3.6 registry (matplotlib.cm.get_cmap was removed in 3.9)
             from matplotlib import colormaps
+
             cmap = colormaps.get_cmap(name)
         except (ImportError, AttributeError):
             import matplotlib.cm as cm
+
             cmap = cm.get_cmap(name, n)
         colors = (cmap(np.linspace(0, 1, n))[:, :3] * 255).astype(np.uint8)
         return colors
@@ -51,14 +52,16 @@ def _get_colormap(name: str, n: int = 256) -> np.ndarray:
         return colors
 
 
-def overlay_mask_on_volume(nii_path: str,
-                           mask_path: str,
-                           output_path: str,
-                           view: str = "axial",
-                           alpha: float = 0.4,
-                           colormap: str = "jet",
-                           output_format: str = "png",
-                           debug: bool = False) -> List[str]:
+def overlay_mask_on_volume(
+    nii_path: str,
+    mask_path: str,
+    output_path: str,
+    view: str = "axial",
+    alpha: float = 0.4,
+    colormap: str = "jet",
+    output_format: str = "png",
+    debug: bool = False,
+) -> list[str]:
     """
     Create colored overlay images of a segmentation mask on a grayscale volume.
 
@@ -95,9 +98,7 @@ def overlay_mask_on_volume(nii_path: str,
     mask_data = nib.load(mask_path).get_fdata()
 
     if vol_data.shape != mask_data.shape:
-        raise ValueError(
-            f"Shape mismatch: volume {vol_data.shape} vs mask {mask_data.shape}."
-        )
+        raise ValueError(f"Shape mismatch: volume {vol_data.shape} vs mask {mask_data.shape}.")
 
     view_mapping = {"axial": 2, "coronal": 1, "sagittal": 0}
     axis = view_mapping[view]
@@ -105,7 +106,7 @@ def overlay_mask_on_volume(nii_path: str,
     prefix = strip_nifti_ext(os.path.basename(nii_path))
     cmap_colors = _get_colormap(colormap)
 
-    saved_paths: List[str] = []
+    saved_paths: list[str] = []
     num_slices = vol_data.shape[axis]
 
     for i in tqdm(range(num_slices), desc=f"Overlay {prefix} ({view})", unit="slice"):
@@ -129,9 +130,7 @@ def overlay_mask_on_volume(nii_path: str,
             mask_norm = _normalize_to_uint8(mask_slice)
             color_overlay = cmap_colors[mask_norm]
 
-            rgb[mask_binary] = (
-                (1 - alpha) * rgb[mask_binary] + alpha * color_overlay[mask_binary]
-            ).astype(np.uint8)
+            rgb[mask_binary] = ((1 - alpha) * rgb[mask_binary] + alpha * color_overlay[mask_binary]).astype(np.uint8)
 
         fname = f"{prefix}_overlay_{view}_{str(i).zfill(3)}.{output_format}"
         fpath = os.path.join(output_path, fname)
@@ -144,14 +143,16 @@ def overlay_mask_on_volume(nii_path: str,
     return saved_paths
 
 
-def overlay_mask_on_volume_dataset(nii_folder: str,
-                                   mask_folder: str,
-                                   output_path: str,
-                                   view: str = "axial",
-                                   alpha: float = 0.4,
-                                   colormap: str = "jet",
-                                   output_format: str = "png",
-                                   debug: bool = False) -> int:
+def overlay_mask_on_volume_dataset(
+    nii_folder: str,
+    mask_folder: str,
+    output_path: str,
+    view: str = "axial",
+    alpha: float = 0.4,
+    colormap: str = "jet",
+    output_format: str = "png",
+    debug: bool = False,
+) -> int:
     """
     Create mask overlay images for all matching NIfTI pairs in two folders.
 
@@ -191,9 +192,14 @@ def overlay_mask_on_volume_dataset(nii_folder: str,
 
         try:
             paths = overlay_mask_on_volume(
-                nii_path, mask_path, case_dir,
-                view=view, alpha=alpha, colormap=colormap,
-                output_format=output_format, debug=debug,
+                nii_path,
+                mask_path,
+                case_dir,
+                view=view,
+                alpha=alpha,
+                colormap=colormap,
+                output_format=output_format,
+                debug=debug,
             )
             total += len(paths)
         except Exception as e:
@@ -205,12 +211,9 @@ def overlay_mask_on_volume_dataset(nii_folder: str,
     return total
 
 
-def create_slice_montage(nii_path: str,
-                         output_path: str,
-                         view: str = "axial",
-                         num_slices: int = 16,
-                         cols: int = 4,
-                         debug: bool = False) -> str:
+def create_slice_montage(
+    nii_path: str, output_path: str, view: str = "axial", num_slices: int = 16, cols: int = 4, debug: bool = False
+) -> str:
     """
     Create a montage (grid) of evenly-spaced slices from a NIfTI volume.
 
@@ -258,7 +261,7 @@ def create_slice_montage(nii_path: str,
 
     for i, s in enumerate(slices):
         r, c = divmod(i, cols)
-        montage[r * h:(r + 1) * h, c * w:(c + 1) * w] = s
+        montage[r * h : (r + 1) * h, c * w : (c + 1) * w] = s
 
     prefix = strip_nifti_ext(os.path.basename(nii_path))
     out_file = os.path.join(output_path, f"{prefix}_montage_{view}.png")

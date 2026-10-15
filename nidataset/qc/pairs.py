@@ -14,31 +14,30 @@ core (:func:`_check_geom_match`).
 
 from __future__ import annotations
 
-from typing import Optional
-
-import numpy as np
 import nibabel as nib
+import numpy as np
 from scipy import ndimage
 
-from .._helpers import validate_nifti_path, logger
+from .._helpers import logger, validate_nifti_path
 from .checks import _spatial_shape
 from .config import QCConfig
-from .report import Report, OK, WARNING, ERROR
+from .report import ERROR, OK, WARNING, Report
 
 
-def _load(path: str) -> "nib.Nifti1Image":
+def _load(path: str) -> nib.Nifti1Image:
     validate_nifti_path(path)
     return nib.load(path)
 
 
-def _check_geom_match(name_a: str, img_a: "nib.Nifti1Image",
-                      name_b: str, img_b: "nib.Nifti1Image",
-                      config: QCConfig, report: Report) -> None:
+def _check_geom_match(
+    name_a: str, img_a: nib.Nifti1Image, name_b: str, img_b: nib.Nifti1Image, config: QCConfig, report: Report
+) -> None:
     """Shape + affine agreement between two volumes (the alignment guarantee)."""
     sa, sb = _spatial_shape(img_a.shape), _spatial_shape(img_b.shape)
     if sa != sb:
-        report.add(f"shape_match_{name_b}", ERROR,
-                   f"{name_a} shape {sa} != {name_b} shape {sb}.", {name_a: sa, name_b: sb})
+        report.add(
+            f"shape_match_{name_b}", ERROR, f"{name_a} shape {sa} != {name_b} shape {sb}.", {name_a: sa, name_b: sb}
+        )
     else:
         report.add(f"shape_match_{name_b}", OK, f"{name_a} and {name_b} share shape {sa}.", sa)
 
@@ -50,13 +49,15 @@ def _check_geom_match(name_a: str, img_a: "nib.Nifti1Image",
     translation_mm = float(np.linalg.norm(aff_a[:3, 3] - aff_b[:3, 3]))
     value = {"max_abs_diff": max_diff, "translation_mm": translation_mm}
     if max_diff > config.affine_atol:
-        report.add(f"affine_match_{name_b}", ERROR,
-                   f"{name_a} and {name_b} affines differ (max|Δ|={max_diff:.3e}, "
-                   f"translation={translation_mm:.3f} mm); volumes are misaligned in world space.",
-                   value)
+        report.add(
+            f"affine_match_{name_b}",
+            ERROR,
+            f"{name_a} and {name_b} affines differ (max|Δ|={max_diff:.3e}, "
+            f"translation={translation_mm:.3f} mm); volumes are misaligned in world space.",
+            value,
+        )
     else:
-        report.add(f"affine_match_{name_b}", OK,
-                   f"{name_a} and {name_b} affines agree (max|Δ|={max_diff:.3e}).", value)
+        report.add(f"affine_match_{name_b}", OK, f"{name_a} and {name_b} affines agree (max|Δ|={max_diff:.3e}).", value)
 
 
 def _check_labels(name: str, data: np.ndarray, config: QCConfig, report: Report) -> None:
@@ -65,11 +66,13 @@ def _check_labels(name: str, data: np.ndarray, config: QCConfig, report: Report)
     allowed = set(config.label_set)
     extra = [float(u) for u in uniques if float(u) not in allowed]
     if extra:
-        report.add(f"labels_{name}", ERROR,
-                   f"{name} has labels outside allowed {sorted(allowed)}: {extra[:10]}.", extra[:10])
+        report.add(
+            f"labels_{name}", ERROR, f"{name} has labels outside allowed {sorted(allowed)}: {extra[:10]}.", extra[:10]
+        )
     else:
-        report.add(f"labels_{name}", OK,
-                   f"{name} labels within allowed {sorted(allowed)}.", [float(u) for u in uniques])
+        report.add(
+            f"labels_{name}", OK, f"{name} labels within allowed {sorted(allowed)}.", [float(u) for u in uniques]
+        )
 
 
 def _check_nonempty(name: str, foreground: np.ndarray, report: Report) -> int:
@@ -82,8 +85,7 @@ def _check_nonempty(name: str, foreground: np.ndarray, report: Report) -> int:
     return count
 
 
-def _check_containment(ann_fg: np.ndarray, mask_fg: np.ndarray,
-                       config: QCConfig, report: Report) -> None:
+def _check_containment(ann_fg: np.ndarray, mask_fg: np.ndarray, config: QCConfig, report: Report) -> None:
     """Fraction of annotation voxels falling outside the mask (brain)."""
     n_ann = int(np.count_nonzero(ann_fg))
     if n_ann == 0:
@@ -91,12 +93,14 @@ def _check_containment(ann_fg: np.ndarray, mask_fg: np.ndarray,
     outside = int(np.count_nonzero(ann_fg & ~mask_fg))
     frac = outside / n_ann
     if frac > config.max_annotation_outside_fraction:
-        report.add("containment", ERROR,
-                   f"{frac:.1%} of annotation voxels fall outside the mask "
-                   f"(> {config.max_annotation_outside_fraction:.1%}).", frac)
+        report.add(
+            "containment",
+            ERROR,
+            f"{frac:.1%} of annotation voxels fall outside the mask (> {config.max_annotation_outside_fraction:.1%}).",
+            frac,
+        )
     else:
-        report.add("containment", OK,
-                   f"Annotation within mask ({frac:.1%} outside).", frac)
+        report.add("containment", OK, f"Annotation within mask ({frac:.1%} outside).", frac)
 
 
 def _check_bbox_border(name: str, foreground: np.ndarray, config: QCConfig, report: Report) -> None:
@@ -110,8 +114,7 @@ def _check_bbox_border(name: str, foreground: np.ndarray, config: QCConfig, repo
     report.meta[f"bbox_{name}"] = bbox
     touches = bool(np.any(mins == 0) or np.any(maxs == np.array(foreground.shape) - 1))
     if touches and config.warn_bbox_touches_border:
-        report.add(f"bbox_{name}", WARNING,
-                   f"{name} bounding box touches the volume border (possible clipping).", bbox)
+        report.add(f"bbox_{name}", WARNING, f"{name} bounding box touches the volume border (possible clipping).", bbox)
     else:
         report.add(f"bbox_{name}", OK, f"{name} bounding box {bbox} inside volume.", bbox)
 
@@ -127,19 +130,25 @@ def _check_components(name: str, foreground: np.ndarray, config: QCConfig, repor
     report.meta[f"components_{name}"] = {"count": int(n), "sizes": sizes_sorted[:20]}
     tiny = [s for s in sizes_sorted if s < config.min_component_size]
     if n > config.max_components:
-        report.add(f"components_{name}", WARNING,
-                   f"{name} has {n} connected components (> {config.max_components}); "
-                   f"possible fragmentation.", int(n))
+        report.add(
+            f"components_{name}",
+            WARNING,
+            f"{name} has {n} connected components (> {config.max_components}); possible fragmentation.",
+            int(n),
+        )
     elif tiny:
-        report.add(f"components_{name}", WARNING,
-                   f"{name} has {len(tiny)} component(s) smaller than "
-                   f"{config.min_component_size} voxels (possible spurious blobs).", tiny)
+        report.add(
+            f"components_{name}",
+            WARNING,
+            f"{name} has {len(tiny)} component(s) smaller than "
+            f"{config.min_component_size} voxels (possible spurious blobs).",
+            tiny,
+        )
     else:
-        report.add(f"components_{name}", OK,
-                   f"{name} has {n} connected component(s).", int(n))
+        report.add(f"components_{name}", OK, f"{name} has {n} connected component(s).", int(n))
 
 
-def check_pair(image_path: str, mask_path: str, config: Optional[QCConfig] = None) -> Report:
+def check_pair(image_path: str, mask_path: str, config: QCConfig | None = None) -> Report:
     """
     Check coherence between an image and a mask (brain).
 
@@ -176,8 +185,7 @@ def check_pair(image_path: str, mask_path: str, config: Optional[QCConfig] = Non
     return report
 
 
-def check_triple(image_path: str, mask_path: str, annotation_path: str,
-                 config: Optional[QCConfig] = None) -> Report:
+def check_triple(image_path: str, mask_path: str, annotation_path: str, config: QCConfig | None = None) -> Report:
     """
     Check coherence between an image, a mask (brain) and an annotation (lesion/bbox).
 

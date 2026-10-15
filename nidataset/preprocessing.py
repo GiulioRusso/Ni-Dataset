@@ -1,8 +1,8 @@
-import os
 import logging
-import tempfile
+import os
 import shutil
 import subprocess
+import tempfile
 
 import nibabel as nib
 import numpy as np
@@ -11,11 +11,10 @@ from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
 from ._helpers import (
-    validate_nifti_path,
-    list_nifti_files,
     ensure_dir,
+    list_nifti_files,
     strip_nifti_ext,
-    is_nifti,
+    validate_nifti_path,
     validate_view,
 )
 
@@ -24,12 +23,15 @@ logger = logging.getLogger("nidataset")
 
 # Skulling
 
-def skull_CTA(nii_path: str,
-              output_path: str,
-              f_value: float = 0.1,
-              clip_value: tuple = (0, 200),
-              cleanup: bool = False,
-              debug: bool = False) -> str:
+
+def skull_CTA(
+    nii_path: str,
+    output_path: str,
+    f_value: float = 0.1,
+    clip_value: tuple = (0, 200),
+    cleanup: bool = False,
+    debug: bool = False,
+) -> str:
     """
     Perform a CTA-specific skull-stripping pipeline on a single NIfTI file.
 
@@ -125,25 +127,26 @@ def skull_CTA(nii_path: str,
         logger.debug("  - Using temporary directory: %s", temp_dir)
 
         # step 2: intensity clipping and smoothing
-        subprocess.run(["fslmaths", nii_path, "-thr", "0", "-uthr", "100", th_img],
-                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["fslmaths", nii_path, "-thr", "0", "-uthr", "100", th_img], check=True, capture_output=True)
         logger.debug("  - Threshold [0-100]")
 
-        subprocess.run(["fslmaths", th_img, "-s", "1", th_sm_img],
-                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["fslmaths", th_img, "-s", "1", th_sm_img], check=True, capture_output=True)
         logger.debug("  - Smoothing (sigma=1)")
 
-        subprocess.run(["fslmaths", th_sm_img, "-thr", "0", "-uthr", "100", th_sm_th_img],
-                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            ["fslmaths", th_sm_img, "-thr", "0", "-uthr", "100", th_sm_th_img], check=True, capture_output=True
+        )
         logger.info("Step 2: Intensity thresholding and smoothing complete.")
 
         # step 3: BET skull stripping (creates skulled image + mask)
         logger.info("Step 3: Running BET with f=%s...", f_value)
 
-        result = subprocess.run([
-            "bet", th_sm_th_img, skulled_img, "-R",
-            "-f", str(f_value), "-g", "0", "-m"
-        ], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["bet", th_sm_th_img, skulled_img, "-R", "-f", str(f_value), "-g", "0", "-m"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
         if result.stdout:
             logger.debug("  BET stdout: %s", result.stdout)
@@ -158,8 +161,7 @@ def skull_CTA(nii_path: str,
             raise RuntimeError(f"BET failed to create skulled image: {skulled_img}")
 
         # step 4: apply brain mask to the ORIGINAL CTA
-        subprocess.run(["fslmaths", nii_path, "-mul", mask_img, brain_img],
-                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["fslmaths", nii_path, "-mul", mask_img, brain_img], check=True, capture_output=True)
 
         logger.info("Step 4: Brain mask applied to original CTA.")
 
@@ -179,13 +181,13 @@ def skull_CTA(nii_path: str,
         logger.info("Skull mask saved at: '%s'", final_mask_img)
 
     except subprocess.CalledProcessError as e:
-        error_msg = e.stderr if hasattr(e, 'stderr') and e.stderr else ""
-        if not error_msg and hasattr(e, 'stdout') and e.stdout:
+        error_msg = e.stderr if hasattr(e, "stderr") and e.stderr else ""
+        if not error_msg and hasattr(e, "stdout") and e.stdout:
             error_msg = e.stdout
         if not error_msg:
             error_msg = f"Command returned exit status {e.returncode}"
 
-        raise RuntimeError(f"FSL command failed for '{nii_path}' with error:\n{error_msg}")
+        raise RuntimeError(f"FSL command failed for '{nii_path}' with error:\n{error_msg}") from e
 
     finally:
         # always cleanup temporary directory
@@ -206,13 +208,15 @@ def skull_CTA(nii_path: str,
     return final_clipped_img
 
 
-def skull_CTA_dataset(nii_folder: str,
-                      output_path: str,
-                      f_value: float = 0.1,
-                      clip_value: tuple = (0, 200),
-                      cleanup: bool = False,
-                      saving_mode: str = "case",
-                      debug: bool = False) -> list:
+def skull_CTA_dataset(
+    nii_folder: str,
+    output_path: str,
+    f_value: float = 0.1,
+    clip_value: tuple = (0, 200),
+    cleanup: bool = False,
+    saving_mode: str = "case",
+    debug: bool = False,
+) -> list:
     """
     Apply a CTA-specific skull-stripping pipeline to all NIfTI files inside a folder.
 
@@ -324,7 +328,7 @@ def skull_CTA_dataset(nii_folder: str,
                 f_value=f_value,
                 clip_value=clip_value,
                 cleanup=cleanup,
-                debug=debug
+                debug=debug,
             )
             output_paths.append(result_path)
 
@@ -340,7 +344,7 @@ def skull_CTA_dataset(nii_folder: str,
                 f_value=f_value,
                 clip_value=clip_value,
                 cleanup=False,
-                debug=debug
+                debug=debug,
             )
 
             # move skull-stripped image to skulled folder
@@ -371,11 +375,8 @@ def skull_CTA_dataset(nii_folder: str,
 
 # Maximum Intensity Projection
 
-def mip(nii_path: str,
-        output_path: str,
-        window_size: int = 10,
-        view: str = "axial",
-        debug: bool = False) -> str:
+
+def mip(nii_path: str, output_path: str, window_size: int = 10, view: str = "axial", debug: bool = False) -> str:
     """
     Generate a sliding-window Maximum Intensity Projection (MIP) from a 3D NIfTI volume.
 
@@ -500,12 +501,14 @@ def mip(nii_path: str,
     return mip_filename
 
 
-def mip_dataset(nii_folder: str,
-                output_path: str,
-                window_size: int = 10,
-                view: str = "axial",
-                saving_mode: str = "case",
-                debug: bool = False) -> list:
+def mip_dataset(
+    nii_folder: str,
+    output_path: str,
+    window_size: int = 10,
+    view: str = "axial",
+    saving_mode: str = "case",
+    debug: bool = False,
+) -> list:
     """
     Generate sliding-window Maximum Intensity Projections (MIP) for all NIfTI
     volumes contained in a dataset directory.
@@ -623,10 +626,8 @@ def mip_dataset(nii_folder: str,
 
 # Resampling
 
-def resampling(nii_path: str,
-               output_path: str,
-               desired_volume: tuple,
-               debug: bool = False) -> str:
+
+def resampling(nii_path: str, output_path: str, desired_volume: tuple, debug: bool = False) -> str:
     """
     Resample a 3D NIfTI volume to a target spatial size while preserving its
     physical field of view.
@@ -685,7 +686,9 @@ def resampling(nii_path: str,
 
     # ensure tuple has three values
     if len(desired_volume) != 3:
-        raise ValueError(f"Error: invalid desired_volume value. Expected three values. Got '{len(desired_volume)}' instead.")
+        raise ValueError(
+            f"Error: invalid desired_volume value. Expected three values. Got '{len(desired_volume)}' instead."
+        )
 
     # create output dir if it does not exist
     ensure_dir(output_path)
@@ -713,15 +716,11 @@ def resampling(nii_path: str,
         new_spacing,
         image.GetDirection(),
         0,
-        image.GetPixelID()
+        image.GetPixelID(),
     )
 
     # clip resampled values to original intensity range
-    resampled_img = sitk.Clamp(
-        resampled_img,
-        lowerBound=orig_min,
-        upperBound=orig_max
-    )
+    resampled_img = sitk.Clamp(resampled_img, lowerBound=orig_min, upperBound=orig_max)
 
     # extract filename prefix
     prefix = strip_nifti_ext(os.path.basename(nii_path))
@@ -735,11 +734,9 @@ def resampling(nii_path: str,
     return resampled_filename
 
 
-def resampling_dataset(nii_folder: str,
-                       output_path: str,
-                       desired_volume: tuple,
-                       saving_mode: str = "case",
-                       debug: bool = False) -> list:
+def resampling_dataset(
+    nii_folder: str, output_path: str, desired_volume: tuple, saving_mode: str = "case", debug: bool = False
+) -> list:
     """
     Resample all 3D NIfTI files inside a dataset folder to a target volume size.
     The resampled images preserve the original field of view by computing a new
@@ -798,7 +795,9 @@ def resampling_dataset(nii_folder: str,
 
     # ensure tuple has three values
     if len(desired_volume) != 3:
-        raise ValueError(f"Error: invalid desired_volume value. Expected three values. Got '{len(desired_volume)}' instead.")
+        raise ValueError(
+            f"Error: invalid desired_volume value. Expected three values. Got '{len(desired_volume)}' instead."
+        )
 
     # get all NIfTI files in the dataset folder (sorted)
     nii_files = list_nifti_files(nii_folder)
@@ -837,21 +836,24 @@ def resampling_dataset(nii_folder: str,
 
 # Registration
 
-def register_CTA(nii_path: str,
-                 mask_path: str,
-                 template_path: str,
-                 template_mask_path: str,
-                 output_path: str,
-                 cleanup: bool = False,
-                 debug: bool = False,
-                 number_histogram_bins: int = 128,
-                 learning_rate: float = 0.0001,
-                 number_iterations: int = 2000,
-                 initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
-                 sigma_first: float = 2.0,
-                 sigma_second: float = 3.0,
-                 metric_sampling_percentage: float = 0.5,
-                 initial_transform = None) -> str:
+
+def register_CTA(
+    nii_path: str,
+    mask_path: str,
+    template_path: str,
+    template_mask_path: str,
+    output_path: str,
+    cleanup: bool = False,
+    debug: bool = False,
+    number_histogram_bins: int = 128,
+    learning_rate: float = 0.0001,
+    number_iterations: int = 2000,
+    initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
+    sigma_first: float = 2.0,
+    sigma_second: float = 3.0,
+    metric_sampling_percentage: float = 0.5,
+    initial_transform=None,
+) -> str:
     """
     Registers a CTA volume to a reference template using Mutual Information.
     The pipeline applies Gaussian-based preprocessing on the CTA, loads the
@@ -983,8 +985,8 @@ def register_CTA(nii_path: str,
     prefix = strip_nifti_ext(os.path.basename(nii_path))
 
     # paths for saving outputs
-    transformation_path = os.path.join(output_path, f'{prefix}_transformation.tfm')
-    registered_folder = os.path.join(output_path, f'{prefix}_registered.nii.gz')
+    transformation_path = os.path.join(output_path, f"{prefix}_transformation.tfm")
+    registered_folder = os.path.join(output_path, f"{prefix}_registered.nii.gz")
 
     # load CTA image
     image = nib.load(nii_path).get_fdata().astype(np.float32)
@@ -1009,7 +1011,9 @@ def register_CTA(nii_path: str,
     image_gaussian = sitk.Cast(image_gaussian, template.GetPixelID())
 
     # clip intensity values in CTA (0 to 100)
-    image_gaussian = sitk.Clamp(image_gaussian, lowerBound=0, upperBound=100, outputPixelType=image_gaussian.GetPixelID())
+    image_gaussian = sitk.Clamp(
+        image_gaussian, lowerBound=0, upperBound=100, outputPixelType=image_gaussian.GetPixelID()
+    )
 
     # registration method
     registration_method = sitk.ImageRegistrationMethod()
@@ -1036,9 +1040,7 @@ def register_CTA(nii_path: str,
 
     # optimizer settings
     registration_method.SetOptimizerAsGradientDescent(
-        learningRate=learning_rate,
-        numberOfIterations=number_iterations,
-        estimateLearningRate=registration_method.Once
+        learningRate=learning_rate, numberOfIterations=number_iterations, estimateLearningRate=registration_method.Once
     )
     registration_method.SetOptimizerScalesFromPhysicalShift()
 
@@ -1062,22 +1064,24 @@ def register_CTA(nii_path: str,
     return registered_folder
 
 
-def register_CTA_dataset(nii_folder: str,
-                         mask_folder: str,
-                         template_path: str,
-                         template_mask_path: str,
-                         output_path: str,
-                         saving_mode: str = "case",
-                         cleanup: bool = False,
-                         debug: bool = False,
-                         number_histogram_bins: int = 128,
-                         learning_rate: float = 0.0001,
-                         number_iterations: int = 2000,
-                         initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
-                         sigma_first: float = 2.0,
-                         sigma_second: float = 3.0,
-                         metric_sampling_percentage: float = 0.5,
-                         initial_transform = None) -> list:
+def register_CTA_dataset(
+    nii_folder: str,
+    mask_folder: str,
+    template_path: str,
+    template_mask_path: str,
+    output_path: str,
+    saving_mode: str = "case",
+    cleanup: bool = False,
+    debug: bool = False,
+    number_histogram_bins: int = 128,
+    learning_rate: float = 0.0001,
+    number_iterations: int = 2000,
+    initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
+    sigma_first: float = 2.0,
+    sigma_second: float = 3.0,
+    metric_sampling_percentage: float = 0.5,
+    initial_transform=None,
+) -> list:
     """
     Registers all CTA images in a dataset folder to a reference template using
     mutual information-based registration. Each CTA volume is preprocessed
@@ -1253,22 +1257,46 @@ def register_CTA_dataset(nii_folder: str,
             case_output_dir = os.path.join(output_path, prefix)
             ensure_dir(case_output_dir)
 
-            result_path = register_CTA(nii_path, mask_path, template_path, template_mask_path,
-                         case_output_dir, cleanup, debug,
-                         number_histogram_bins, learning_rate, number_iterations,
-                         initialization_strategy, sigma_first, sigma_second,
-                         metric_sampling_percentage, initial_transform)
+            result_path = register_CTA(
+                nii_path,
+                mask_path,
+                template_path,
+                template_mask_path,
+                case_output_dir,
+                cleanup,
+                debug,
+                number_histogram_bins,
+                learning_rate,
+                number_iterations,
+                initialization_strategy,
+                sigma_first,
+                sigma_second,
+                metric_sampling_percentage,
+                initial_transform,
+            )
             output_paths.append(result_path)
         else:  # saving_mode == "folder"
             # for folder mode, register to a temporary location
             temp_output_dir = os.path.join(output_path, f"_temp_{prefix}")
             ensure_dir(temp_output_dir)
 
-            register_CTA(nii_path, mask_path, template_path, template_mask_path,
-                         temp_output_dir, cleanup, debug,
-                         number_histogram_bins, learning_rate, number_iterations,
-                         initialization_strategy, sigma_first, sigma_second,
-                         metric_sampling_percentage, initial_transform)
+            register_CTA(
+                nii_path,
+                mask_path,
+                template_path,
+                template_mask_path,
+                temp_output_dir,
+                cleanup,
+                debug,
+                number_histogram_bins,
+                learning_rate,
+                number_iterations,
+                initialization_strategy,
+                sigma_first,
+                sigma_second,
+                metric_sampling_percentage,
+                initial_transform,
+            )
 
             # move registered image to registered folder
             src_registered = os.path.join(temp_output_dir, f"{prefix}_registered.nii.gz")
@@ -1296,12 +1324,14 @@ def register_CTA_dataset(nii_folder: str,
     return output_paths
 
 
-def register_mask(mask_path: str,
-                  transform_path: str,
-                  registered_path: str,
-                  output_path: str,
-                  is_binary: bool = True,
-                  debug: bool = False) -> str:
+def register_mask(
+    mask_path: str,
+    transform_path: str,
+    registered_path: str,
+    output_path: str,
+    is_binary: bool = True,
+    debug: bool = False,
+) -> str:
     """
     Apply a saved spatial transformation to a mask using a registered image
     as reference.
@@ -1408,14 +1438,7 @@ def register_mask(mask_path: str,
         interpolator = sitk.sitkLinear
 
     # apply the transformation
-    registered_mask = sitk.Resample(
-        mask,
-        reference_image,
-        transformation,
-        interpolator,
-        0.0,
-        mask.GetPixelID()
-    )
+    registered_mask = sitk.Resample(mask, reference_image, transformation, interpolator, 0.0, mask.GetPixelID())
 
     # save the transformed mask
     sitk.WriteImage(registered_mask, output_path)
@@ -1425,13 +1448,15 @@ def register_mask(mask_path: str,
     return output_path
 
 
-def register_mask_dataset(mask_folder: str,
-                          transform_folder: str,
-                          registered_folder: str,
-                          output_path: str,
-                          is_binary: bool = True,
-                          saving_mode: str = "case",
-                          debug: bool = False) -> list:
+def register_mask_dataset(
+    mask_folder: str,
+    transform_folder: str,
+    registered_folder: str,
+    output_path: str,
+    is_binary: bool = True,
+    saving_mode: str = "case",
+    debug: bool = False,
+) -> list:
     """
     Apply saved spatial transformations to all mask files in a dataset folder.
 
@@ -1600,7 +1625,7 @@ def register_mask_dataset(mask_folder: str,
             registered_path=registered_file,
             output_path=output_file,
             is_binary=is_binary,
-            debug=debug
+            debug=debug,
         )
         output_paths.append(result_path)
 
@@ -1609,12 +1634,14 @@ def register_mask_dataset(mask_folder: str,
     return output_paths
 
 
-def register_annotation(annotation_path: str,
-                       transform_path: str,
-                       registered_path: str,
-                       output_path: str,
-                       recalculate_bbox: bool = True,
-                       debug: bool = False) -> str:
+def register_annotation(
+    annotation_path: str,
+    transform_path: str,
+    registered_path: str,
+    output_path: str,
+    recalculate_bbox: bool = True,
+    debug: bool = False,
+) -> str:
     """
     Apply a saved spatial transformation to an annotation and optionally
     recalculate a tight axis-aligned bounding box.
@@ -1712,7 +1739,9 @@ def register_annotation(annotation_path: str,
 
     # ensure the annotation is a _bbox.nii.gz file
     if not annotation_path.endswith("_bbox.nii.gz"):
-        raise ValueError(f"Error: invalid file format. Expected a '_bbox.nii.gz' file. Got '{annotation_path}' instead.")
+        raise ValueError(
+            f"Error: invalid file format. Expected a '_bbox.nii.gz' file. Got '{annotation_path}' instead."
+        )
 
     # create output directory if it does not exist
     output_dir = os.path.dirname(output_path)
@@ -1730,12 +1759,7 @@ def register_annotation(annotation_path: str,
 
     # apply the transformation to the annotation
     transformed_annotation = sitk.Resample(
-        annotation,
-        reference_image,
-        transformation,
-        sitk.sitkNearestNeighbor,
-        0.0,
-        annotation.GetPixelID()
+        annotation, reference_image, transformation, sitk.sitkNearestNeighbor, 0.0, annotation.GetPixelID()
     )
 
     if recalculate_bbox:
@@ -1758,7 +1782,7 @@ def register_annotation(annotation_path: str,
 
         # create new mask with tight bounding box
         new_annotation_array = np.zeros_like(transformed_array, dtype=np.uint8)
-        new_annotation_array[z_min:z_max + 1, y_min:y_max + 1, x_min:x_max + 1] = 1
+        new_annotation_array[z_min : z_max + 1, y_min : y_max + 1, x_min : x_max + 1] = 1
 
         # convert back to SimpleITK
         final_annotation = sitk.GetImageFromArray(new_annotation_array)
@@ -1780,13 +1804,15 @@ def register_annotation(annotation_path: str,
     return output_path
 
 
-def register_annotation_dataset(annotation_folder: str,
-                                transform_folder: str,
-                                registered_folder: str,
-                                output_path: str,
-                                recalculate_bbox: bool = True,
-                                saving_mode: str = "case",
-                                debug: bool = False) -> list:
+def register_annotation_dataset(
+    annotation_folder: str,
+    transform_folder: str,
+    registered_folder: str,
+    output_path: str,
+    recalculate_bbox: bool = True,
+    saving_mode: str = "case",
+    debug: bool = False,
+) -> list:
     """
     Apply saved spatial transformations to all annotation files in a dataset folder.
 
@@ -1958,7 +1984,7 @@ def register_annotation_dataset(annotation_folder: str,
             registered_path=registered_file,
             output_path=output_file,
             recalculate_bbox=recalculate_bbox,
-            debug=debug
+            debug=debug,
         )
         output_paths.append(result_path)
 

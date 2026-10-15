@@ -4,20 +4,21 @@ Regression tests for nidataset.crop_and_pad.
 Synthetic in-memory NIfTI volumes only (small arrays, known affines).
 """
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 import pytest
 
 import nidataset as nid
 
-
 # Non-trivial affine: anisotropic spacing, a flip, and a world-space offset.
-AFFINE = np.array([
-    [2.0, 0.0, 0.0, 10.0],
-    [0.0, -3.0, 0.0, 20.0],
-    [0.0, 0.0, 4.0, 30.0],
-    [0.0, 0.0, 0.0, 1.0],
-])
+AFFINE = np.array(
+    [
+        [2.0, 0.0, 0.0, 10.0],
+        [0.0, -3.0, 0.0, 20.0],
+        [0.0, 0.0, 4.0, 30.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+)
 
 
 def _voxel_to_world(affine, ijk):

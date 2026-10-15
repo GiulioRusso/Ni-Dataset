@@ -7,20 +7,21 @@ coordinate after the operation. That is what catches an affine that was not
 updated in step with the data.
 """
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 import pytest
 
 import nidataset as nid
 
-
 # Non-trivial affine: anisotropic spacing, a flip, and a world offset.
-AFFINE = np.array([
-    [2.0, 0.0, 0.0, 10.0],
-    [0.0, -3.0, 0.0, 20.0],
-    [0.0, 0.0, 4.0, 30.0],
-    [0.0, 0.0, 0.0, 1.0],
-])
+AFFINE = np.array(
+    [
+        [2.0, 0.0, 0.0, 10.0],
+        [0.0, -3.0, 0.0, 20.0],
+        [0.0, 0.0, 4.0, 30.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+)
 
 
 def _world(affine, ijk):
@@ -135,8 +136,7 @@ def test_rescale_hits_target_range(tmp_path):
 def test_rescale_clips_to_input_window(tmp_path):
     data = np.linspace(0, 100, 8 * 8 * 8, dtype=np.float32).reshape(8, 8, 8)
     src = _save(tmp_path, data)
-    out = nid.rescale_intensity(src, str(tmp_path / "rw"), out_min=0, out_max=1,
-                                in_min=25, in_max=75)
+    out = nid.rescale_intensity(src, str(tmp_path / "rw"), out_min=0, out_max=1, in_min=25, in_max=75)
     od, _ = _load(out)
     assert od.min() == 0.0 and od.max() == 1.0  # values outside [25,75] clamp
 

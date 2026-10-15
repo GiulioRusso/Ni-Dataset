@@ -14,13 +14,13 @@ nibabel and the package's existing colormap helper — no new dependencies.
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 from PIL import Image
 
-from .._helpers import ensure_dir, strip_nifti_ext, logger
+from .._helpers import ensure_dir, logger, strip_nifti_ext
 
 # Overlay colours (RGB) and blend strength.
 _MASK_RGB = (60, 200, 90)
@@ -67,8 +67,7 @@ def _overlay(rgb: np.ndarray, fg: np.ndarray, color: Sequence[int]) -> np.ndarra
     return out.astype(np.uint8)
 
 
-def _cell(image: np.ndarray, axis: int, cell_size: int,
-          mask: Optional[np.ndarray], ann: Optional[np.ndarray]) -> Image.Image:
+def _cell(image: np.ndarray, axis: int, cell_size: int, mask: np.ndarray | None, ann: np.ndarray | None) -> Image.Image:
     """Render one (image[, overlays]) plane as a square Pillow image."""
     gray = _robust_norm(_central_slice(image, axis))
     rgb = _to_rgb(gray)
@@ -80,7 +79,7 @@ def _cell(image: np.ndarray, axis: int, cell_size: int,
     return img.resize((cell_size, cell_size), Image.NEAREST)
 
 
-def _load_spatial(path: Optional[str]) -> Optional[np.ndarray]:
+def _load_spatial(path: str | None) -> np.ndarray | None:
     """Load a NIfTI as a 3D float array (first volume if 4D); ``None`` passthrough."""
     if path is None:
         return None
@@ -90,8 +89,7 @@ def _load_spatial(path: Optional[str]) -> Optional[np.ndarray]:
     return data
 
 
-def thumbnail_grid(specs: List[Dict[str, Optional[str]]], output_path: str,
-                   cell_size: int = 160) -> str:
+def thumbnail_grid(specs: list[dict[str, str | None]], output_path: str, cell_size: int = 160) -> str:
     """
     Render a PNG grid of central orthogonal slices, one row per item.
 
@@ -144,7 +142,7 @@ def thumbnail_grid(specs: List[Dict[str, Optional[str]]], output_path: str,
     return output_path
 
 
-def _label(spec: Dict[str, Optional[str]]) -> str:
+def _label(spec: dict[str, str | None]) -> str:
     """Best-effort row label for a spec (used by the CLI)."""
     if spec.get("label"):
         return str(spec["label"])

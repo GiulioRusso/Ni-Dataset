@@ -5,43 +5,45 @@ Provides windowing, intensity normalization, resampling to reference,
 and format conversion helpers.
 """
 
-import os
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+import os
+from typing import Optional
 
 import nibabel as nib
 import numpy as np
-from tqdm import tqdm
 import SimpleITK as sitk
+from tqdm import tqdm
 
 from ._helpers import (
-    validate_nifti_path,
-    list_nifti_files,
     ensure_dir,
-    strip_nifti_ext,
+    list_nifti_files,
     run_nifti_dataset,
+    strip_nifti_ext,
+    validate_nifti_path,
 )
 
 logger = logging.getLogger("nidataset")
 
 
-
 # Intensity normalization
 
-def intensity_normalization(nii_path: str,
-                            output_path: str,
-                            method: str = "zscore",
-                            percentile_range: Tuple[float, float] = (1.0, 99.0),
-                            reference_path: Optional[str] = None,
-                            debug: bool = False) -> str:
+
+def intensity_normalization(
+    nii_path: str,
+    output_path: str,
+    method: str = "zscore",
+    percentile_range: tuple[float, float] = (1.0, 99.0),
+    reference_path: Optional[str] = None,
+    debug: bool = False,
+) -> str:
     """
     Normalize the intensity values of a 3D NIfTI volume.
 
     Supported methods:
-        - ``"zscore"``       – Zero-mean, unit-variance normalization.
-        - ``"minmax"``       – Scale to [0, 1] range.
-        - ``"percentile"``   – Clip to the given percentile range, then min-max.
-        - ``"histogram"``    – Match histogram to a reference volume.
+        - ``"zscore"``       - Zero-mean, unit-variance normalization.
+        - ``"minmax"``       - Scale to [0, 1] range.
+        - ``"percentile"``   - Clip to the given percentile range, then min-max.
+        - ``"histogram"``    - Match histogram to a reference volume.
 
     Saves:
         ``<PREFIX>_normalized.nii.gz``
@@ -107,7 +109,7 @@ def intensity_normalization(nii_path: str,
             np.linspace(0, 1, len(ref_sorted)),
             ref_sorted,
         )
-        mapping = dict(zip(src_sorted, interp_values))
+        dict(zip(src_sorted, interp_values))
         sort_idx = np.argsort(data.ravel())
         matched = np.empty_like(data.ravel())
         matched[sort_idx] = interp_values
@@ -122,12 +124,14 @@ def intensity_normalization(nii_path: str,
     return out_file
 
 
-def intensity_normalization_dataset(nii_folder: str,
-                                    output_path: str,
-                                    method: str = "zscore",
-                                    percentile_range: Tuple[float, float] = (1.0, 99.0),
-                                    reference_path: Optional[str] = None,
-                                    debug: bool = False) -> List[str]:
+def intensity_normalization_dataset(
+    nii_folder: str,
+    output_path: str,
+    method: str = "zscore",
+    percentile_range: tuple[float, float] = (1.0, 99.0),
+    reference_path: Optional[str] = None,
+    debug: bool = False,
+) -> list[str]:
     """
     Apply intensity normalization to all NIfTI files in a folder.
 
@@ -153,9 +157,12 @@ def intensity_normalization_dataset(nii_folder: str,
         nii_path = os.path.join(nii_folder, nii_file)
         try:
             out = intensity_normalization(
-                nii_path, output_path, method=method,
+                nii_path,
+                output_path,
+                method=method,
                 percentile_range=percentile_range,
-                reference_path=reference_path, debug=debug,
+                reference_path=reference_path,
+                debug=debug,
             )
             results.append(out)
         except Exception as e:
@@ -167,7 +174,7 @@ def intensity_normalization_dataset(nii_folder: str,
 # CT Windowing
 
 # Common CT window presets: (window_center, window_width)
-CT_WINDOW_PRESETS: Dict[str, Tuple[float, float]] = {
+CT_WINDOW_PRESETS: dict[str, tuple[float, float]] = {
     "brain": (40, 80),
     "subdural": (75, 215),
     "stroke": (40, 40),
@@ -179,13 +186,15 @@ CT_WINDOW_PRESETS: Dict[str, Tuple[float, float]] = {
 }
 
 
-def windowing(nii_path: str,
-              output_path: str,
-              window_center: Optional[float] = None,
-              window_width: Optional[float] = None,
-              preset: Optional[str] = None,
-              normalize: bool = True,
-              debug: bool = False) -> str:
+def windowing(
+    nii_path: str,
+    output_path: str,
+    window_center: Optional[float] = None,
+    window_width: Optional[float] = None,
+    preset: Optional[str] = None,
+    normalize: bool = True,
+    debug: bool = False,
+) -> str:
     """
     Apply CT windowing (window center + window width) to a NIfTI volume.
 
@@ -240,18 +249,19 @@ def windowing(nii_path: str,
     nib.save(nib.Nifti1Image(data.astype(np.float32), nii_img.affine, nii_img.header), out_file)
 
     if debug:
-        logger.info("Windowed volume saved at: '%s' (center=%.1f, width=%.1f)",
-                     out_file, window_center, window_width)
+        logger.info("Windowed volume saved at: '%s' (center=%.1f, width=%.1f)", out_file, window_center, window_width)
     return out_file
 
 
-def windowing_dataset(nii_folder: str,
-                      output_path: str,
-                      window_center: Optional[float] = None,
-                      window_width: Optional[float] = None,
-                      preset: Optional[str] = None,
-                      normalize: bool = True,
-                      debug: bool = False) -> List[str]:
+def windowing_dataset(
+    nii_folder: str,
+    output_path: str,
+    window_center: Optional[float] = None,
+    window_width: Optional[float] = None,
+    preset: Optional[str] = None,
+    normalize: bool = True,
+    debug: bool = False,
+) -> list[str]:
     """
     Apply CT windowing to all NIfTI files in a folder.
 
@@ -278,9 +288,13 @@ def windowing_dataset(nii_folder: str,
         nii_path = os.path.join(nii_folder, nii_file)
         try:
             out = windowing(
-                nii_path, output_path,
-                window_center=window_center, window_width=window_width,
-                preset=preset, normalize=normalize, debug=debug,
+                nii_path,
+                output_path,
+                window_center=window_center,
+                window_width=window_width,
+                preset=preset,
+                normalize=normalize,
+                debug=debug,
             )
             results.append(out)
         except Exception as e:
@@ -291,11 +305,10 @@ def windowing_dataset(nii_folder: str,
 
 # Resample to reference
 
-def resample_to_reference(nii_path: str,
-                          reference_path: str,
-                          output_path: str,
-                          interpolation: str = "linear",
-                          debug: bool = False) -> str:
+
+def resample_to_reference(
+    nii_path: str, reference_path: str, output_path: str, interpolation: str = "linear", debug: bool = False
+) -> str:
     """
     Resample a NIfTI volume to match the spatial grid of a reference volume.
 
@@ -352,11 +365,9 @@ def resample_to_reference(nii_path: str,
     return out_file
 
 
-def resample_to_reference_dataset(nii_folder: str,
-                                  reference_path: str,
-                                  output_path: str,
-                                  interpolation: str = "linear",
-                                  debug: bool = False) -> List[str]:
+def resample_to_reference_dataset(
+    nii_folder: str, reference_path: str, output_path: str, interpolation: str = "linear", debug: bool = False
+) -> list[str]:
     """
     Resample all NIfTI files in a folder to match a reference volume.
 
@@ -380,8 +391,7 @@ def resample_to_reference_dataset(nii_folder: str,
     for nii_file in tqdm(nii_files, desc="Resampling to reference", unit="file"):
         nii_path = os.path.join(nii_folder, nii_file)
         try:
-            out = resample_to_reference(nii_path, reference_path, output_path,
-                                        interpolation=interpolation, debug=debug)
+            out = resample_to_reference(nii_path, reference_path, output_path, interpolation=interpolation, debug=debug)
             results.append(out)
         except Exception as e:
             logger.warning("Error resampling %s: %s", nii_file, e)
@@ -391,12 +401,15 @@ def resample_to_reference_dataset(nii_folder: str,
 
 # Apply generic transform
 
-def apply_transform(nii_path: str,
-                    transform_path: str,
-                    reference_path: str,
-                    output_path: str,
-                    interpolation: str = "linear",
-                    debug: bool = False) -> str:
+
+def apply_transform(
+    nii_path: str,
+    transform_path: str,
+    reference_path: str,
+    output_path: str,
+    interpolation: str = "linear",
+    debug: bool = False,
+) -> str:
     """
     Apply a saved spatial transformation to any NIfTI volume.
 
@@ -440,8 +453,12 @@ def apply_transform(nii_path: str,
     transform = sitk.ReadTransform(transform_path)
 
     transformed = sitk.Resample(
-        moving, reference, transform,
-        interp_map[interpolation], 0.0, moving.GetPixelID(),
+        moving,
+        reference,
+        transform,
+        interp_map[interpolation],
+        0.0,
+        moving.GetPixelID(),
     )
 
     prefix = strip_nifti_ext(os.path.basename(nii_path))
@@ -455,10 +472,8 @@ def apply_transform(nii_path: str,
 
 # Format conversion
 
-def nifti_to_numpy(nii_path: str,
-                   output_path: str,
-                   compressed: bool = True,
-                   debug: bool = False) -> str:
+
+def nifti_to_numpy(nii_path: str, output_path: str, compressed: bool = True, debug: bool = False) -> str:
     """
     Convert a NIfTI volume to a NumPy ``.npy`` or ``.npz`` file.
 
@@ -492,11 +507,13 @@ def nifti_to_numpy(nii_path: str,
     return out_file
 
 
-def numpy_to_nifti(npy_path: str,
-                   output_path: str,
-                   affine: Optional[np.ndarray] = None,
-                   reference_nifti: Optional[str] = None,
-                   debug: bool = False) -> str:
+def numpy_to_nifti(
+    npy_path: str,
+    output_path: str,
+    affine: Optional[np.ndarray] = None,
+    reference_nifti: Optional[str] = None,
+    debug: bool = False,
+) -> str:
     """
     Convert a NumPy ``.npy`` or ``.npz`` file to NIfTI format.
 
@@ -520,7 +537,7 @@ def numpy_to_nifti(npy_path: str,
 
     if npy_path.endswith(".npz"):
         npz = np.load(npy_path)
-        data = npz[list(npz.keys())[0]]
+        data = npz[next(iter(npz.keys()))]
     else:
         data = np.load(npy_path)
 
@@ -544,13 +561,16 @@ def numpy_to_nifti(npy_path: str,
 
 # Linear intensity rescale
 
-def rescale_intensity(nii_path: str,
-                      output_path: str,
-                      out_min: float = 0.0,
-                      out_max: float = 1.0,
-                      in_min: Optional[float] = None,
-                      in_max: Optional[float] = None,
-                      debug: bool = False) -> str:
+
+def rescale_intensity(
+    nii_path: str,
+    output_path: str,
+    out_min: float = 0.0,
+    out_max: float = 1.0,
+    in_min: Optional[float] = None,
+    in_max: Optional[float] = None,
+    debug: bool = False,
+) -> str:
     """
     Linearly rescale a NIfTI volume's intensities to ``[out_min, out_max]``.
 
@@ -598,30 +618,37 @@ def rescale_intensity(nii_path: str,
     nib.save(nib.Nifti1Image(data.astype(np.float32), nii_img.affine, nii_img.header), out_file)
 
     if debug:
-        logger.info("Rescaled volume saved at: '%s' ([%.3g, %.3g] -> [%.3g, %.3g])",
-                    out_file, lo, hi, out_min, out_max)
+        logger.info("Rescaled volume saved at: '%s' ([%.3g, %.3g] -> [%.3g, %.3g])", out_file, lo, hi, out_min, out_max)
     return out_file
 
 
-def rescale_intensity_dataset(nii_folder: str,
-                              output_path: str,
-                              out_min: float = 0.0,
-                              out_max: float = 1.0,
-                              in_min: Optional[float] = None,
-                              in_max: Optional[float] = None,
-                              debug: bool = False) -> List[str]:
+def rescale_intensity_dataset(
+    nii_folder: str,
+    output_path: str,
+    out_min: float = 0.0,
+    out_max: float = 1.0,
+    in_min: Optional[float] = None,
+    in_max: Optional[float] = None,
+    debug: bool = False,
+) -> list[str]:
     """Rescale every NIfTI in ``nii_folder``. See :func:`rescale_intensity`."""
-    return run_nifti_dataset(rescale_intensity, nii_folder, output_path,
-                             desc="Rescaling intensities", debug=debug,
-                             out_min=out_min, out_max=out_max,
-                             in_min=in_min, in_max=in_max)
+    return run_nifti_dataset(
+        rescale_intensity,
+        nii_folder,
+        output_path,
+        desc="Rescaling intensities",
+        debug=debug,
+        out_min=out_min,
+        out_max=out_max,
+        in_min=in_min,
+        in_max=in_max,
+    )
 
 
 # DICOM <-> NIfTI conversion
 
-def dicom_to_nifti(dicom_dir: str,
-                   output_path: str,
-                   debug: bool = False) -> str:
+
+def dicom_to_nifti(dicom_dir: str, output_path: str, debug: bool = False) -> str:
     """
     Convert a directory of DICOM slices (one series) into a single NIfTI volume.
 
@@ -658,15 +685,11 @@ def dicom_to_nifti(dicom_dir: str,
     sitk.WriteImage(image, out_file)
 
     if debug:
-        logger.info("NIfTI written from DICOM series at: '%s' (%d slices)",
-                    out_file, len(file_names))
+        logger.info("NIfTI written from DICOM series at: '%s' (%d slices)", out_file, len(file_names))
     return out_file
 
 
-def nifti_to_dicom(nii_path: str,
-                   output_path: str,
-                   series_description: str = "nidataset",
-                   debug: bool = False) -> str:
+def nifti_to_dicom(nii_path: str, output_path: str, series_description: str = "nidataset", debug: bool = False) -> str:
     """
     Convert a NIfTI volume into a DICOM series (one ``.dcm`` file per slice).
 
@@ -706,11 +729,11 @@ def nifti_to_dicom(nii_path: str,
     series_uid = "1.2.826.0.1.3680043.2.1125." + time_str + ".1." + str(int(time.time()))
     direction = image.GetDirection()
     shared_tags = {
-        "0008|0060": "OT",                                   # Modality (Other)
-        "0008|0020": now,                                    # StudyDate
-        "0008|0030": time_str,                               # StudyTime
-        "0008|103e": series_description,                     # SeriesDescription
-        "0020|000e": series_uid,                             # SeriesInstanceUID
+        "0008|0060": "OT",  # Modality (Other)
+        "0008|0020": now,  # StudyDate
+        "0008|0030": time_str,  # StudyTime
+        "0008|103e": series_description,  # SeriesDescription
+        "0020|000e": series_uid,  # SeriesInstanceUID
         "0020|0037": "\\".join(str(direction[i]) for i in (0, 3, 6, 1, 4, 7)),  # Orientation
     }
 
@@ -724,8 +747,8 @@ def nifti_to_dicom(nii_path: str,
             slice_img.SetMetaData(tag, value)
         position = image.TransformIndexToPhysicalPoint((0, 0, z))
         slice_img.SetMetaData("0020|0032", "\\".join(str(p) for p in position))  # ImagePosition
-        slice_img.SetMetaData("0020|0013", str(z + 1))                            # InstanceNumber
-        slice_img.SetMetaData("0008|0018", series_uid + "." + str(z + 1))         # SOPInstanceUID
+        slice_img.SetMetaData("0020|0013", str(z + 1))  # InstanceNumber
+        slice_img.SetMetaData("0008|0018", series_uid + "." + str(z + 1))  # SOPInstanceUID
         writer.SetFileName(os.path.join(series_dir, f"{z:04d}.dcm"))
         writer.Execute(slice_img)
 

@@ -1,17 +1,18 @@
-import os
-import logging
-from tqdm import tqdm
-import numpy as np
 import csv
+import logging
+import os
+from typing import Optional
+
 import nibabel as nib
+import numpy as np
 from PIL import Image
-from typing import List, Optional, Tuple
+from tqdm import tqdm
 
 from ._helpers import (
-    validate_nifti_path,
-    list_nifti_files,
     ensure_dir,
+    list_nifti_files,
     strip_nifti_ext,
+    validate_nifti_path,
     validate_view,
 )
 
@@ -20,12 +21,15 @@ logger = logging.getLogger("nidataset")
 
 # Slices
 
-def extract_slices(nii_path: str,
-                   output_path: str,
-                   view: str = "axial",
-                   target_size: Optional[Tuple[int, int]] = None,
-                   pad_value: float = 0.0,
-                   debug: bool = False) -> List[str]:
+
+def extract_slices(
+    nii_path: str,
+    output_path: str,
+    view: str = "axial",
+    target_size: Optional[tuple[int, int]] = None,
+    pad_value: float = 0.0,
+    debug: bool = False,
+) -> list[str]:
     """
     Extracts slices from a NIfTI file and saves them as images .tif, following the structure
         <NIFTI FILENAME>_<VIEW>_<PROGRESSIVE SLICE NUMBER>.tif
@@ -113,9 +117,9 @@ def extract_slices(nii_path: str,
 
     # mapping of views to slicing axes
     view_mapping = {
-        "axial": (2, lambda data, i: data[:, :, i]),       # Z-axis
-        "coronal": (1, lambda data, i: data[:, i, :]),     # Y-axis
-        "sagittal": (0, lambda data, i: data[i, :, :])     # X-axis
+        "axial": (2, lambda data, i: data[:, :, i]),  # Z-axis
+        "coronal": (1, lambda data, i: data[:, i, :]),  # Y-axis
+        "sagittal": (0, lambda data, i: data[i, :, :]),  # X-axis
     }
 
     # get axis and slicing function
@@ -163,10 +167,7 @@ def extract_slices(nii_path: str,
 
             # apply padding
             slice_data = np.pad(
-                slice_data,
-                ((pad_top, pad_bottom), (pad_left, pad_right)),
-                mode='constant',
-                constant_values=pad_value
+                slice_data, ((pad_top, pad_bottom), (pad_left, pad_right)), mode="constant", constant_values=pad_value
             )
 
         # construct filename with zero-padded slice index
@@ -181,19 +182,23 @@ def extract_slices(nii_path: str,
     # debug verbose logging
     if debug:
         padding_info = f"\nPadding applied: target size {target_size}" if target_size else "\nNo padding applied"
-        logger.info(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
-              f"{padding_info}\nTotal {view} slices extracted: {num_slices}")
+        logger.info(
+            f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
+            f"{padding_info}\nTotal {view} slices extracted: {num_slices}"
+        )
 
     return saved_paths
 
 
-def extract_slices_dataset(nii_folder: str,
-                           output_path: str,
-                           view: str = "axial",
-                           saving_mode: str = "case",
-                           target_size: Optional[Tuple[int, int]] = None,
-                           pad_value: float = 0.0,
-                           save_stats: bool = False) -> int:
+def extract_slices_dataset(
+    nii_folder: str,
+    output_path: str,
+    view: str = "axial",
+    saving_mode: str = "case",
+    target_size: Optional[tuple[int, int]] = None,
+    pad_value: float = 0.0,
+    save_stats: bool = False,
+) -> int:
     """
     Extracts slices from all NIfTI files in a dataset folder and saves them as images .tif, following the structure
 
@@ -319,11 +324,9 @@ def extract_slices_dataset(nii_folder: str,
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix, view)
             ensure_dir(case_output_dir)
-            extract_slices(nii_path, case_output_dir, view,
-                          target_size=target_size, pad_value=pad_value, debug=False)
+            extract_slices(nii_path, case_output_dir, view, target_size=target_size, pad_value=pad_value, debug=False)
         else:
-            extract_slices(nii_path, view_output_dir, view,
-                          target_size=target_size, pad_value=pad_value, debug=False)
+            extract_slices(nii_path, view_output_dir, view, target_size=target_size, pad_value=pad_value, debug=False)
 
     # save statistics if enabled
     if save_stats:
@@ -341,13 +344,16 @@ def extract_slices_dataset(nii_folder: str,
 
 # Annotations
 
-def extract_annotations(nii_path: str,
-                        output_path: str,
-                        view: str = "axial",
-                        saving_mode: str = "slice",
-                        data_mode: str = "center",
-                        target_size: Optional[Tuple[int, int]] = None,
-                        debug: bool = False) -> List[str]:
+
+def extract_annotations(
+    nii_path: str,
+    output_path: str,
+    view: str = "axial",
+    saving_mode: str = "slice",
+    data_mode: str = "center",
+    target_size: Optional[tuple[int, int]] = None,
+    debug: bool = False,
+) -> list[str]:
     """
     Extracts annotations from a NIfTI annotation file and saves them as CSV, based on the selected view and named with:
 
@@ -539,8 +545,14 @@ def extract_annotations(nii_path: str,
             elif data_mode == "radius":
                 box_data = [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
             else:  # box
-                box_data = [min_y + pad_offset_x, min_x + pad_offset_y, slice_min,
-                            max_y + pad_offset_x, max_x + pad_offset_y, slice_max]
+                box_data = [
+                    min_y + pad_offset_x,
+                    min_x + pad_offset_y,
+                    slice_min,
+                    max_y + pad_offset_x,
+                    max_x + pad_offset_y,
+                    slice_max,
+                ]
 
         elif view == "coronal":
             # Coronal: 2D X=Z_3D, 2D Y=X_3D, Slice=Y_3D
@@ -557,8 +569,14 @@ def extract_annotations(nii_path: str,
             elif data_mode == "radius":
                 box_data = [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
             else:  # box
-                box_data = [min_z + pad_offset_x, min_x + pad_offset_y, slice_min,
-                            max_z + pad_offset_x, max_x + pad_offset_y, slice_max]
+                box_data = [
+                    min_z + pad_offset_x,
+                    min_x + pad_offset_y,
+                    slice_min,
+                    max_z + pad_offset_x,
+                    max_x + pad_offset_y,
+                    slice_max,
+                ]
 
         else:  # sagittal
             # Sagittal: 2D X=Z_3D, 2D Y=Y_3D, Slice=X_3D
@@ -575,8 +593,14 @@ def extract_annotations(nii_path: str,
             elif data_mode == "radius":
                 box_data = [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
             else:  # box
-                box_data = [min_z + pad_offset_x, min_y + pad_offset_y, slice_min,
-                            max_z + pad_offset_x, max_y + pad_offset_y, slice_max]
+                box_data = [
+                    min_z + pad_offset_x,
+                    min_y + pad_offset_y,
+                    slice_min,
+                    max_z + pad_offset_x,
+                    max_y + pad_offset_y,
+                    slice_max,
+                ]
 
         bounding_boxes.append(box_data)
 
@@ -606,9 +630,15 @@ def extract_annotations(nii_path: str,
 
         # debug logging
         if debug:
-            padding_info = f"\nPadding adjustment applied: target size {target_size}" if target_size else "\nNo padding adjustment applied"
-            logger.info(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
-                  f"{padding_info}\nTotal volume annotations extracted: {len(bounding_boxes)}")
+            padding_info = (
+                f"\nPadding adjustment applied: target size {target_size}"
+                if target_size
+                else "\nNo padding adjustment applied"
+            )
+            logger.info(
+                f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
+                f"{padding_info}\nTotal volume annotations extracted: {len(bounding_boxes)}"
+            )
 
     else:
         slice_annotations = {}
@@ -642,7 +672,8 @@ def extract_annotations(nii_path: str,
                     # box format: [coord_2d_x, coord_2d_y, slice_min, slice_max]
                     slice_annotations[slice_num].append([box[0], box[1]])
                 elif data_mode == "radius":
-                    # For radius mode, box contains 3D data: [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
+                    # For radius mode, box contains 3D data:
+                    # [center_x_3d, center_y_3d, center_z_3d, radius_x_3d, radius_y_3d, radius_z_3d]
                     # We need to convert to 2D coordinates with correct mapping
                     if view == "axial":
                         # Axial: 2D X=Y_3D, 2D Y=X_3D
@@ -690,23 +721,32 @@ def extract_annotations(nii_path: str,
 
         # debug logging
         if debug:
-            padding_info = f"\nPadding adjustment applied: target size {target_size}" if target_size else "\nNo padding adjustment applied"
-            logger.info(f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
-                  f"{padding_info}\nTotal slices with annotations extracted: {num_slices}")
+            padding_info = (
+                f"\nPadding adjustment applied: target size {target_size}"
+                if target_size
+                else "\nNo padding adjustment applied"
+            )
+            logger.info(
+                f"\nInput file: '{nii_path}'\nOutput path: '{output_path}'"
+                f"{padding_info}\nTotal slices with annotations extracted: {num_slices}"
+            )
 
     return saved_paths
 
 
-def extract_annotations_dataset(nii_folder: str,
-                                output_path: str,
-                                view: str = "axial",
-                                saving_mode: str = "case",
-                                extraction_mode: str = "slice",
-                                data_mode: str = "center",
-                                target_size: Optional[Tuple[int, int]] = None,
-                                save_stats: bool = False) -> int:
+def extract_annotations_dataset(
+    nii_folder: str,
+    output_path: str,
+    view: str = "axial",
+    saving_mode: str = "case",
+    extraction_mode: str = "slice",
+    data_mode: str = "center",
+    target_size: Optional[tuple[int, int]] = None,
+    save_stats: bool = False,
+) -> int:
     """
-    Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV, based on the selected view and named with:
+    Extracts annotations from all NIfTI annotation files in a dataset folder and saves them as CSV,
+    based on the selected view and named with:
 
         <NIFTI FILENAME>_<VIEW>_<PROGRESSIVE SLICE NUMBER>.csv
 
@@ -848,11 +888,13 @@ def extract_annotations_dataset(nii_folder: str,
         if saving_mode == "case":
             case_output_dir = os.path.join(output_path, prefix, view)
             ensure_dir(case_output_dir)
-            extract_annotations(nii_path, case_output_dir, view, extraction_mode,
-                              data_mode, target_size=target_size, debug=False)
+            extract_annotations(
+                nii_path, case_output_dir, view, extraction_mode, data_mode, target_size=target_size, debug=False
+            )
         else:
-            extract_annotations(nii_path, view_output_dir, view, extraction_mode,
-                              data_mode, target_size=target_size, debug=False)
+            extract_annotations(
+                nii_path, view_output_dir, view, extraction_mode, data_mode, target_size=target_size, debug=False
+            )
 
     # save statistics if enabled
     if save_stats:

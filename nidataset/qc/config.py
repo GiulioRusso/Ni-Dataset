@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass, fields
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any
 
 
 @dataclass
@@ -72,20 +73,20 @@ class QCConfig:
     """
 
     # Geometry
-    expected_orientation: Optional[str] = None
+    expected_orientation: str | None = None
     affine_atol: float = 1e-4
     isotropy_tol: float = 0.05
-    spacing_range: Tuple[float, float] = (0.1, 10.0)
+    spacing_range: tuple[float, float] = (0.1, 10.0)
 
     # Data
-    intensity_range: Optional[Tuple[float, float]] = None
+    intensity_range: tuple[float, float] | None = None
     warn_float64: bool = True
     empty_slice_bg_value: float = 0.0
     empty_slice_min_fg_fraction: float = 1e-4
     max_empty_slice_fraction: float = 0.5
 
     # Pair / triple
-    allowed_labels: Optional[Sequence[float]] = None
+    allowed_labels: Sequence[float] | None = None
     max_annotation_outside_fraction: float = 0.0
     min_component_size: int = 1
     max_components: int = 50
@@ -99,8 +100,7 @@ class QCConfig:
             self.expected_orientation = self.expected_orientation.upper()
             if len(self.expected_orientation) != 3:
                 raise ValueError(
-                    f"expected_orientation must be 3 characters (e.g. 'RAS'), "
-                    f"got {self.expected_orientation!r}"
+                    f"expected_orientation must be 3 characters (e.g. 'RAS'), got {self.expected_orientation!r}"
                 )
         # Normalize tuples that may arrive as lists from JSON/YAML.
         if self.spacing_range is not None:
@@ -111,12 +111,12 @@ class QCConfig:
             self.allowed_labels = tuple(self.allowed_labels)
 
     @property
-    def label_set(self) -> Tuple[float, ...]:
+    def label_set(self) -> tuple[float, ...]:
         """Resolved set of allowed labels (defaults to binary ``(0, 1)``)."""
         return tuple(self.allowed_labels) if self.allowed_labels is not None else (0.0, 1.0)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "QCConfig":
+    def from_dict(cls, data: dict[str, Any]) -> QCConfig:
         """
         Build a :class:`QCConfig` from a plain ``dict``, ignoring unknown keys.
 
@@ -129,7 +129,7 @@ class QCConfig:
         return cls(**data)
 
     @classmethod
-    def load(cls, path: str) -> "QCConfig":
+    def load(cls, path: str) -> QCConfig:
         """
         Load config from ``.json`` (stdlib) or ``.yaml`` / ``.yml`` (needs ``pyyaml``).
 
@@ -140,7 +140,7 @@ class QCConfig:
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Config file not found: '{path}'")
         ext = os.path.splitext(path)[1].lower()
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             text = f.read()
         if ext in (".yaml", ".yml"):
             try:

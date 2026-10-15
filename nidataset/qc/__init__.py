@@ -30,33 +30,33 @@ Whole dataset + custom thresholds:
 The CLI ``niqc`` wraps the same functions; see ``niqc --help``.
 """
 
+from .checks import check_volume
 from .config import QCConfig
+from .dataset import check_dataset
+from .pairs import check_pair, check_triple
 from .report import (
-    CheckResult,
-    Report,
-    DatasetReport,
-    to_json,
+    ERROR,
     OK,
     WARNING,
-    ERROR,
+    CheckResult,
+    DatasetReport,
+    Report,
+    to_json,
 )
-from .checks import check_volume
-from .pairs import check_pair, check_triple
-from .dataset import check_dataset
 from .thumbnails import thumbnail_grid
 
 __all__ = [
-    "QCConfig",
-    "CheckResult",
-    "Report",
-    "DatasetReport",
-    "to_json",
+    "ERROR",
     "OK",
     "WARNING",
-    "ERROR",
-    "check_volume",
+    "CheckResult",
+    "DatasetReport",
+    "QCConfig",
+    "Report",
+    "check_dataset",
     "check_pair",
     "check_triple",
-    "check_dataset",
+    "check_volume",
     "thumbnail_grid",
+    "to_json",
 ]

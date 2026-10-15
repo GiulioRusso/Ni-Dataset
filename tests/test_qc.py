@@ -12,20 +12,20 @@ import json
 import subprocess
 import sys
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 
 import nidataset as nid
 from nidataset.qc import (
-    check_volume,
-    check_pair,
-    check_triple,
-    check_dataset,
-    QCConfig,
-    to_json,
+    ERROR,
     OK,
     WARNING,
-    ERROR,
+    QCConfig,
+    check_dataset,
+    check_pair,
+    check_triple,
+    check_volume,
+    to_json,
 )
 
 RAS = np.diag([1.0, 1.0, 1.0, 1.0])  # identity -> ('R', 'A', 'S')
@@ -52,12 +52,14 @@ def _block(shape=(20, 20, 20), lo=4, hi=16, value=1, dtype=np.uint8):
 
 # Subpackage wiring
 
+
 def test_qc_exposed_as_nid_qc():
     assert hasattr(nid, "qc")
     assert nid.qc.check_volume is check_volume
 
 
 # Single volume — geometry
+
 
 def test_orientation_las_flagged_against_ras(tmp_path):
     las = np.diag([-1.0, 1.0, 1.0, 1.0])  # flips R->L  => ('L', 'A', 'S')
@@ -90,6 +92,7 @@ def test_anisotropic_spacing_warns(tmp_path):
 
 
 # Single volume — data
+
 
 def test_nan_flagged(tmp_path):
     data = np.random.rand(8, 8, 8).astype(np.float32)
@@ -125,6 +128,7 @@ def test_empty_border_slices_warn(tmp_path):
 
 # Single volume — file / shape
 
+
 def test_4d_volume_reported(tmp_path):
     data = np.random.rand(8, 8, 8, 3).astype(np.float32)
     path = _save(tmp_path, "ts.nii.gz", data)
@@ -134,6 +138,7 @@ def test_4d_volume_reported(tmp_path):
 
 
 # Pair / triple
+
 
 def test_pair_matching_ok(tmp_path):
     img = _save(tmp_path, "img.nii.gz", np.random.rand(20, 20, 20).astype(np.float32))
@@ -170,8 +175,8 @@ def test_triple_empty_annotation_flagged(tmp_path):
 
 def test_triple_annotation_outside_mask_flagged(tmp_path):
     img = _save(tmp_path, "img.nii.gz", np.random.rand(20, 20, 20).astype(np.float32))
-    mask = _save(tmp_path, "mask.nii.gz", _block(lo=2, hi=6))     # mask in one corner
-    ann = _save(tmp_path, "ann.nii.gz", _block(lo=14, hi=18))     # annotation in another
+    mask = _save(tmp_path, "mask.nii.gz", _block(lo=2, hi=6))  # mask in one corner
+    ann = _save(tmp_path, "ann.nii.gz", _block(lo=14, hi=18))  # annotation in another
     rep = check_triple(img, mask, ann)
     assert _status_of(rep, "containment") == ERROR
     frac = next(r.value for r in rep.results if r.name == "containment")
@@ -187,6 +192,7 @@ def test_triple_labels_outside_allowed_flagged(tmp_path):
 
 
 # Dataset
+
 
 def test_dataset_orientation_distribution_and_outliers(tmp_path):
     for i in range(3):
@@ -214,6 +220,7 @@ def test_dataset_csv_triples(tmp_path):
 
 # Serialization
 
+
 def test_report_json_roundtrips(tmp_path):
     img = _save(tmp_path, "img.nii.gz", np.random.rand(10, 10, 10).astype(np.float32))
     rep = check_volume(img)
@@ -224,6 +231,7 @@ def test_report_json_roundtrips(tmp_path):
 
 
 # Config
+
 
 def test_config_load_json(tmp_path):
     cfg_path = tmp_path / "qc.json"
@@ -245,6 +253,7 @@ def test_config_unknown_key_rejected(tmp_path):
 
 # Thumbnails
 
+
 def test_thumbnail_grid_written(tmp_path):
     img = _save(tmp_path, "img.nii.gz", np.random.rand(20, 20, 20).astype(np.float32))
     mask = _save(tmp_path, "mask.nii.gz", _block())
@@ -255,9 +264,9 @@ def test_thumbnail_grid_written(tmp_path):
 
 # CLI
 
+
 def _run_cli(args):
-    return subprocess.run([sys.executable, "-m", "nidataset.qc.cli", *args],
-                          capture_output=True, text=True)
+    return subprocess.run([sys.executable, "-m", "nidataset.qc.cli", *args], capture_output=True, text=True)
 
 
 def test_cli_strict_exit_code_on_error(tmp_path):

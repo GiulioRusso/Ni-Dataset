@@ -4,8 +4,8 @@ Regression tests for nidataset.visualization.
 Synthetic in-memory NIfTI volumes only.
 """
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 
 import nidataset as nid
 

@@ -17,13 +17,14 @@ import csv
 import os
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, List, Optional, Tuple
+from functools import partial
+from typing import Callable
 
-from .._helpers import list_nifti_files, is_nifti, logger
+from .._helpers import is_nifti, list_nifti_files, logger
 from .checks import check_volume
 from .config import QCConfig
 from .pairs import check_pair, check_triple
-from .report import Report, DatasetReport
+from .report import DatasetReport, Report
 
 # CSV column names recognised for pair/triple manifests (case-insensitive).
 _IMAGE_COLS = ("image", "img", "ct", "cta", "volume")
@@ -31,7 +32,7 @@ _MASK_COLS = ("mask", "brain", "brain_mask")
 _ANN_COLS = ("annotation", "ann", "label", "lesion", "bbox", "gt")
 
 
-def _pick(header: List[str], candidates: Tuple[str, ...]) -> Optional[int]:
+def _pick(header: list[str], candidates: tuple[str, ...]) -> int | None:
     """Return the index of the first header column matching *candidates*."""
     lower = [h.strip().lower() for h in header]
     for cand in candidates:
@@ -40,9 +41,9 @@ def _pick(header: List[str], candidates: Tuple[str, ...]) -> Optional[int]:
     return None
 
 
-def _scan_csv(csv_path: str, config: QCConfig) -> List[Callable[[], Report]]:
+def _scan_csv(csv_path: str, config: QCConfig) -> list[Callable[[], Report]]:
     """Build per-row check thunks from a CSV manifest of pairs/triples."""
-    with open(csv_path, "r", newline="", encoding="utf-8") as f:
+    with open(csv_path, newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
     if not rows:
         raise ValueError(f"CSV '{csv_path}' is empty.")
@@ -62,7 +63,7 @@ def _scan_csv(csv_path: str, config: QCConfig) -> List[Callable[[], Report]]:
         i_ann = 2 if len(header) > 2 else None
         data_rows = rows
 
-    thunks: List[Callable[[], Report]] = []
+    thunks: list[Callable[[], Report]] = []
     for row in data_rows:
         if not row or all(not cell.strip() for cell in row):
             continue
@@ -76,13 +77,13 @@ def _scan_csv(csv_path: str, config: QCConfig) -> List[Callable[[], Report]]:
     return thunks
 
 
-def _scan_folder(folder: str, config: QCConfig) -> List[Callable[[], Report]]:
+def _scan_folder(folder: str, config: QCConfig) -> list[Callable[[], Report]]:
     """Build per-file ``check_volume`` thunks for every NIfTI in *folder* (sorted)."""
     files = list_nifti_files(folder)
-    return [lambda p=os.path.join(folder, f): check_volume(p, config) for f in files]
+    return [partial(check_volume, os.path.join(folder, f), config) for f in files]
 
 
-def _distributions(items: List[Report]) -> dict:
+def _distributions(items: list[Report]) -> dict:
     """Summarize orientation / spacing / shape / dtype across volume items."""
     orient = Counter()
     spacing = Counter()
@@ -102,7 +103,7 @@ def _distributions(items: List[Report]) -> dict:
             dtype[meta["dtype"]] += 1
 
     # Outliers = items not sharing the majority value (the minority worth listing).
-    def _outliers(key: str, counter: Counter) -> List[str]:
+    def _outliers(key: str, counter: Counter) -> list[str]:
         if len(counter) <= 1:
             return []
         majority = counter.most_common(1)[0][0]
@@ -120,8 +121,7 @@ def _distributions(items: List[Report]) -> dict:
     }
 
 
-def check_dataset(path: str, config: Optional[QCConfig] = None,
-                  max_workers: Optional[int] = None) -> DatasetReport:
+def check_dataset(path: str, config: QCConfig | None = None, max_workers: int | None = None) -> DatasetReport:
     """
     Run QC over a whole dataset and summarize cross-dataset coherence.
 
@@ -158,11 +158,12 @@ def check_dataset(path: str, config: Optional[QCConfig] = None,
     # Run thunks; results reassembled in submission order for determinism.
     if workers and workers > 1 and len(thunks) > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            items: List[Report] = list(pool.map(lambda t: t(), thunks))
+            items: list[Report] = list(pool.map(lambda t: t(), thunks))
     else:
         items = [t() for t in thunks]
 
     distributions = _distributions(items)
-    logger.info("check_dataset(%s): %d items, status=%s", path, len(items),
-                DatasetReport(root=path, items=items).status)
+    logger.info(
+        "check_dataset(%s): %d items, status=%s", path, len(items), DatasetReport(root=path, items=items).status
+    )
     return DatasetReport(root=path, items=items, distributions=distributions)

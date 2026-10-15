@@ -1,17 +1,15 @@
-import os
 import csv
 import logging
-from typing import List, Optional
+import os
 
 import nibabel as nib
 import numpy as np
-from tqdm import tqdm
 import scipy.ndimage as ndi
+from tqdm import tqdm
 
 from ._helpers import (
-    list_nifti_files,
     ensure_dir,
-    strip_nifti_ext,
+    list_nifti_files,
 )
 
 logger = logging.getLogger("nidataset")
@@ -19,8 +17,8 @@ logger = logging.getLogger("nidataset")
 
 # Info
 
-def dataset_images_info(nii_folder: str,
-                        output_path: str) -> List[list]:
+
+def dataset_images_info(nii_folder: str, output_path: str) -> list[list]:
     """
     Extracts metadata from all NIfTI files in a dataset and saves it as a CSV
     named 'dataset_images_info.csv'. Extracted metadata includes image shape,
@@ -46,7 +44,7 @@ def dataset_images_info(nii_folder: str,
     nii_files = list_nifti_files(nii_folder)
     ensure_dir(output_path)
 
-    metadata: List[list] = []
+    metadata: list[list] = []
 
     for nii_file in tqdm(nii_files, desc="Extracting metadata", unit="file"):
         nii_path = os.path.join(nii_folder, nii_file)
@@ -73,10 +71,20 @@ def dataset_images_info(nii_folder: str,
                 min_coords = [0, 0, 0]
                 max_coords = [0, 0, 0]
 
-            metadata.append([
-                nii_file, shape, voxel_size, dtype, min_intensity, max_intensity,
-                brain_voxel_count, brain_volume, min_coords, max_coords
-            ])
+            metadata.append(
+                [
+                    nii_file,
+                    shape,
+                    voxel_size,
+                    dtype,
+                    min_intensity,
+                    max_intensity,
+                    brain_voxel_count,
+                    brain_volume,
+                    min_coords,
+                    max_coords,
+                ]
+            )
 
         except Exception as e:
             logger.warning("Error processing %s: %s", nii_file, e)
@@ -86,19 +94,27 @@ def dataset_images_info(nii_folder: str,
 
     with open(output_csv, mode="w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([
-            "FILENAME", "SHAPE (X, Y, Z)", "VOXEL SIZE (mm)", "DATA TYPE", "MIN VALUE", "MAX VALUE",
-            "BRAIN VOXELS", "BRAIN VOLUME (mm³)", "BBOX MIN (X, Y, Z)", "BBOX MAX (X, Y, Z)"
-        ])
+        writer.writerow(
+            [
+                "FILENAME",
+                "SHAPE (X, Y, Z)",
+                "VOXEL SIZE (mm)",
+                "DATA TYPE",
+                "MIN VALUE",
+                "MAX VALUE",
+                "BRAIN VOXELS",
+                "BRAIN VOLUME (mm³)",
+                "BBOX MIN (X, Y, Z)",
+                "BBOX MAX (X, Y, Z)",
+            ]
+        )
         writer.writerows(metadata)
 
     logger.info("Dataset metadata saved in: '%s'", output_csv)
     return metadata
 
 
-def dataset_annotations_info(nii_folder: str,
-                             output_path: str,
-                             annotation_value: int = 1) -> List[list]:
+def dataset_annotations_info(nii_folder: str, output_path: str, annotation_value: int = 1) -> list[list]:
     """
     Extracts 3D bounding boxes from all NIfTI annotation files in a dataset
     and saves them as a CSV named 'dataset_annotations_info.csv'.
@@ -124,7 +140,7 @@ def dataset_annotations_info(nii_folder: str,
     nii_files = list_nifti_files(nii_folder)
     ensure_dir(output_path)
 
-    bounding_boxes_info: List[list] = []
+    bounding_boxes_info: list[list] = []
 
     for nii_file in tqdm(nii_files, desc="Extracting 3D Bounding Boxes", unit="file"):
         nii_path = os.path.join(nii_folder, nii_file)
@@ -143,8 +159,9 @@ def dataset_annotations_info(nii_folder: str,
                 min_coords = component_indices.min(axis=0)
                 max_coords = component_indices.max(axis=0)
 
-                bounding_boxes.append([min_coords[0], min_coords[1], min_coords[2],
-                                       max_coords[0], max_coords[1], max_coords[2]])
+                bounding_boxes.append(
+                    [min_coords[0], min_coords[1], min_coords[2], max_coords[0], max_coords[1], max_coords[2]]
+                )
 
             bounding_boxes_info.append([nii_file, bounding_boxes])
 
