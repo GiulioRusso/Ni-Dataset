@@ -38,6 +38,10 @@ def draw_3D_boxes(
         - ``SCORE`` (only if ``intensity_based_on_score=True``)
 
         Coordinates must be expressed in voxel indices of the reference NIfTI file.
+        ``MIN`` and ``MAX`` are both **inclusive** (the convention used by
+        ``extract_annotations``, ``extract_bounding_boxes`` and
+        ``dataset_annotations_info``), so their output can be drawn back as is.
+        Boxes reaching outside the volume are clipped to it.
 
     :param nii_path:
         Path to the reference ``.nii.gz`` image. Metadata (shape, affine) from this
@@ -136,11 +140,11 @@ def draw_3D_boxes(
         else:
             intensity = 1
 
-        # draw the box
+        # draw the box: MAX is inclusive; clamp MIN so a negative index can't wrap around
         output_data[
-            int(x_min) : int(x_max),
-            int(y_min) : int(y_max),
-            int(z_min) : int(z_max),
+            max(int(x_min), 0) : int(x_max) + 1,
+            max(int(y_min), 0) : int(y_max) + 1,
+            max(int(z_min), 0) : int(z_max) + 1,
         ] = intensity
 
     # extract filename prefix

@@ -141,14 +141,19 @@ def test_rescale_clips_to_input_window(tmp_path):
     assert od.min() == 0.0 and od.max() == 1.0  # values outside [25,75] clamp
 
 
-def test_dicom_roundtrip(tmp_path):
+@pytest.mark.parametrize("run", [1, 2])  # SimpleITK sorts slices differently on its first call in a process
+def test_dicom_roundtrip_preserves_world_geometry(tmp_path, run):
+    import locale
+
+    encoding = locale.getpreferredencoding(False)
     data = (np.random.rand(12, 10, 6) * 500).astype(np.int16).astype(np.float32)
     src = _save(tmp_path, data)
     series_dir = nid.nifti_to_dicom(src, str(tmp_path / "dcm"))
     recovered = nid.dicom_to_nifti(series_dir, str(tmp_path / "back"))
-    rd, ra = _load(recovered)
-    assert rd.shape == data.shape
-    assert np.allclose(rd, data, atol=1.0)
-    # geometry preserved (spacing from AFFINE diagonal magnitudes)
-    spacing = np.linalg.norm(ra[:3, :3], axis=0)
-    assert np.allclose(sorted(spacing), sorted([2.0, 3.0, 4.0]), atol=1e-3)
+    # Compare in a common (RAS) voxel order: same world geometry <=> same arrays and affines.
+    want = nib.as_closest_canonical(nib.Nifti1Image(data, AFFINE))
+    got = nib.as_closest_canonical(nib.load(recovered))
+    assert np.allclose(got.get_fdata(), want.get_fdata(), atol=1.0)
+    assert np.allclose(got.affine, want.affine, atol=1e-3)
+    # GDCM must not leave the process in the "C" locale (ASCII default encoding).
+    assert locale.getpreferredencoding(False) == encoding

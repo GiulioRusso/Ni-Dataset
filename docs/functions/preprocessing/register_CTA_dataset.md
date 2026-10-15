@@ -20,13 +20,14 @@ register_CTA_dataset(
     cleanup: bool = False,
     debug: bool = False,
     number_histogram_bins: int = 128,
-    learning_rate: float = 0.0001,
+    learning_rate: Optional[float] = None,
     number_iterations: int = 2000,
     initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
     sigma_first: float = 2.0,
     sigma_second: float = 3.0,
     metric_sampling_percentage: float = 0.5,
-    initial_transform = None
+    initial_transform = None,
+    random_seed: Optional[int] = 42
 ) -> None
 ```
 
@@ -59,13 +60,14 @@ Registration is essential for:
 | `cleanup`                    | `bool` | `False`    | If `True`, deletes intermediate Gaussian-filtered files after registration.                         |
 | `debug`                      | `bool` | `False`    | If `True`, prints detailed registration information for each volume.                                |
 | `number_histogram_bins`      | `int`  | `128`      | Number of histogram bins for Mattes Mutual Information metric. Common values: 10, 50, 64, 128.     |
-| `learning_rate`              | `float`| `0.0001`   | Learning rate for Gradient Descent optimizer. Common values: 0.0001-1.0.                            |
+| `learning_rate`              | `float` or `None`| `None` | Gradient Descent learning rate. `None` estimates it once from physical-shift scales (recommended). A number is used as given. Before 0.9.0 this value was silently ignored. |
 | `number_iterations`          | `int`  | `2000`     | Maximum number of optimization iterations. Common values: 500-5000.                                 |
 | `initialization_strategy`    | `int`  | `MOMENTS`  | Strategy for initializing transformation: `MOMENTS` (center of mass) or `GEOMETRY` (center/orientation). |
 | `sigma_first`                | `float`| `2.0`      | Standard deviation for the first Gaussian smoothing filter.                                         |
 | `sigma_second`               | `float`| `3.0`      | Standard deviation for the second Gaussian smoothing filter.                                        |
 | `metric_sampling_percentage` | `float`| `0.5`      | Percentage of voxels to sample for metric evaluation (0.0-1.0). Default: 0.5 (50%).               |
 | `initial_transform`          | `None` | `None`     | Initial transformation object. If `None`, defaults to `sitk.Euler3DTransform()`.                   |
+| `random_seed`                | `int` or `None` | `42` | Positive seed for the random metric sampling: same inputs, same transform. `None` seeds from the wall clock (pre-0.9.0 behaviour). `0` is rejected (SimpleITK reads it as wall clock). |
 
 ## Returns
 
@@ -744,7 +746,7 @@ print(f"Registered shape: {sample_reg.shape}")
 | Parameter | Effect | Recommendations |
 |-----------|--------|-----------------|
 | `number_histogram_bins` | Higher values = finer intensity discretization | 64-128 for most cases; 256 for high-contrast images |
-| `learning_rate` | Higher values = faster but less stable convergence | 0.0001-0.001 for standard; 0.01+ for fast initial alignment |
+| `learning_rate` | Fixed step instead of the estimated one; higher = faster but less stable | leave `None` unless you are tuning; check the registered output after any change |
 | `number_iterations` | More iterations = potential for better alignment | 1000-2000 standard; 3000-5000 for difficult cases |
 | `metric_sampling_percentage` | Higher sampling = more accurate but slower | 0.3-0.5 for speed; 0.7-1.0 for accuracy |
 | `sigma_first` / `sigma_second` | Controls smoothing strength | Lower for sharp features; higher for noisy images |
