@@ -1,6 +1,6 @@
 ---
 name: nidataset
-description: Manage, preprocess, register, QC, and analyze NIfTI/DICOM brain-imaging datasets using the nidataset Python package and its nii/niqc CLIs. Use whenever the user asks to convert DICOM<->NIfTI, rotate/flip/crop/rescale scans, skull-strip or register CTA volumes to a template, extract 2D slices for ML, run QC on a scan or image/mask pair, or compute volume statistics.
+description: Manage, preprocess, register, QC, and analyze NIfTI/DICOM brain-imaging datasets using the nidataset Python package and its nii/niqc CLIs. Use whenever the user asks to convert DICOM<->NIfTI, rotate/flip/crop/rescale scans, skull-strip or register CTA volumes to a template, extract 2D slices for ML, run QC on a scan or image/mask pair, compute volume statistics, or run a multi-step YAML/JSON pipeline (`nii run`).
 ---
 
 # nidataset
@@ -27,8 +27,19 @@ nii crop-content scan.nii.gz out/ --margin 2   # crop to foreground box
 nii rescale scan.nii.gz out/ --out-min 0 --out-max 255
 nii to-dicom scan.nii.gz out/
 nii from-dicom dicom/case_01/ out/
-nii preview scan.nii.gz out.png                # slice-montage PNG
+nii preview scan.nii.gz out/                   # slice-montage PNG
+nii run pipeline.yaml                          # multi-step config-driven run
 ```
+
+## Multi-step pipelines — `nii run`
+
+For a repeatable chain (QC -> slices -> registration -> ...), write a YAML/JSON
+config instead of a script; see `examples/ct_pipeline/pipeline.yaml`. Each step
+is `op:` plus the kwargs of the wrapped `*_dataset` function; strings may use
+`{<dataset key>}`, `{output}`, `{view}`. Validated before anything runs; writes
+`<output>/run_manifest.json`. Python: `nid.run_pipeline("pipeline.yaml")`.
+Rerun one stage: `nii run pipeline.yaml --only register`.
+Ops: `nid.pipeline.OPS`.
 
 ## Registration — raw CTA to template
 
@@ -71,7 +82,7 @@ nid.nifti_to_dicom("scan.nii.gz", "out/")
 
 ```python
 nid.skull_CTA("scan.nii.gz", "out/")                         # skull strip
-nid.resampling("scan.nii.gz", "out/", target_spacing=(1,1,1))
+nid.resampling("scan.nii.gz", "out/", desired_volume=(224, 224, 128))
 nid.intensity_normalization("scan.nii.gz", "out/", method="zscore")
 nid.windowing("scan.nii.gz", "out/", window_center=40, window_width=80)
 ```
@@ -79,7 +90,7 @@ nid.windowing("scan.nii.gz", "out/", window_center=40, window_width=80)
 ## Slice extraction for ML datasets
 
 ```python
-nid.extract_slices("scan.nii.gz", "out/", view="axial")       # -> list of PNG/paths
+nid.extract_slices("scan.nii.gz", "out/", view="axial")       # -> list of .tif paths
 nid.extract_annotations("scan.nii.gz", "out/", view="axial")
 ```
 
@@ -94,7 +105,7 @@ diff = nid.compare_volumes("scan_a.nii.gz", "scan_b.nii.gz")
 
 ```bash
 niqc scan.nii.gz                    # single volume
-niqc --dataset scans/                # whole folder
+niqc scans/                          # whole folder (or a .csv manifest)
 ```
 
 ```python

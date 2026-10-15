@@ -3,74 +3,71 @@
   <!-- headline -->
   <center><h1><img align="center" src="https://raw.githubusercontent.com/GiulioRusso/Ni-Dataset/main/docs/images/logo.png" width=100px> NIfTI Dataset Management</h1></center>
 
-  <!-- PyPI badges -->
-  <a href="https://pypi.org/project/nidataset/">
-    <img src="https://badge.fury.io/py/nidataset.svg" alt="PyPI version">
-  </a>
-  <a href="https://pepy.tech/project/nidataset">
-    <img src="https://pepy.tech/badge/nidataset" alt="Downloads">
-  </a>
-  <a href="https://pypi.org/project/nidataset/">
-    <img src="https://img.shields.io/pypi/pyversions/nidataset.svg" alt="Python versions">
-  </a>
-  <a href="https://pypi.org/project/nidataset/">
-    <img src="https://img.shields.io/pypi/l/nidataset.svg" alt="License">
-  </a>
+  <a href="https://pypi.org/project/nidataset/"><img src="https://img.shields.io/pypi/v/nidataset.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/nidataset/"><img src="https://img.shields.io/pypi/pyversions/nidataset.svg" alt="Python versions"></a>
+  <a href="https://github.com/GiulioRusso/Ni-Dataset/actions/workflows/ci.yml"><img src="https://github.com/GiulioRusso/Ni-Dataset/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/GiulioRusso/Ni-Dataset/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-%E2%89%A570%25-brightgreen" alt="Coverage (CI gate)"></a>
+  <a href="https://github.com/GiulioRusso/Ni-Dataset/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/nidataset.svg" alt="License"></a>
+  <a href="https://pepy.tech/project/nidataset"><img src="https://static.pepy.tech/badge/nidataset" alt="Downloads"></a>
 
 </div>
 
 <br>
 
-Comprehensive toolkit for NIfTI medical imaging datasets. Extract 2D slices from 3D volumes, validate data integrity (geometry, orientations, NaN), register and resample, compute statistics, generate visualizations, and build detection/segmentation pipelines—all with zero external ML dependencies. <br>
-
-<img align="center" src="https://raw.githubusercontent.com/GiulioRusso/Ni-Dataset/main/docs/images/nidataset.png" width=1000px>
-
-<br>
-
-Extract 2D slices (all views) and build datasets for ML. Preprocess with skull stripping, registration, resampling, MIP. Transform intensity (normalize, window, rescale) and geometry (resample, crop). Analyze (compare, statistics, splits). Visualize (overlays, montages). Validate data integrity (geometry, orientations, NaN, image↔mask coherence) via Python API or CLI (`niqc`). Run quick edits from the shell — rotate, flip, crop, rescale, DICOM↔NIfTI — via the `nii` CLI. No ML dependencies.
-
-## ⬇️ Installation and Import
-Now, this code is available with PyPI [here](https://pypi.org/project/nidataset/). The package can be installed with:
+**NIfTI dataset toolkit for CT/MRI deep-learning pipelines: slice extraction, registration, QC, preprocessing — no ML dependencies.**
 
 ```bash
-pip install nidataset
+pip install nidataset            # add [yaml] for YAML pipeline / QC configs
 ```
-
-and can be imported as:
 
 ```python
 import nidataset as nid
+
+print(nid.qc.check_dataset("scans/").status)  # orientation, spacing, NaN, ... before anything else
+nid.resampling_dataset("scans/", "resampled/", desired_volume=(224, 224, 128), saving_mode="folder")
+nid.extract_slices_dataset("resampled/", "slices/", view="axial", saving_mode="view")
+nid.extract_annotations_dataset("labels/", "annotations/", view="axial", saving_mode="view")
 ```
 
-## 📖 Documentation and Examples
-
-Full documentation: [https://giuliorusso.github.io/Ni-Dataset/](https://giuliorusso.github.io/Ni-Dataset/)
-
-Complete example project: [CT-manager](https://github.com/GiulioRusso/CT-manager) (slice extraction, registration, QC validation, preprocessing pipeline)
-
-## 🚨 Requirements
+Or chain the same steps in one config and run it from the shell ([example](https://github.com/GiulioRusso/Ni-Dataset/tree/main/examples/ct_pipeline)):
 
 ```bash
-nibabel>=5.0.0
-numpy>=1.24
-opencv-python>=4.7
-pandas>=1.5
-Pillow>=9.4
-scipy>=1.10
-SimpleITK>=2.2
-scikit-image>=0.19
-tqdm>=4.64
+cd examples/ct_pipeline
+python make_synthetic.py         # tiny synthetic dataset, no patient data
+nii run pipeline.yaml            # QC -> slices -> registration -> ... + run_manifest.json
 ```
 
-Install the requirements with:
-```bash
-pip install -r requirements.txt
-```
+<img align="center" src="https://raw.githubusercontent.com/GiulioRusso/Ni-Dataset/main/docs/images/nidataset.png" width=1000px>
 
-## 🤝 Contribution
-👨‍💻 [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
+## ✨ What's inside
+
+- **Slices for ML**: extract 2D slices and matching annotations (center / box / radius) from 3D volumes, in any view, with optional padding.
+- **Preprocessing**: skull stripping (FSL), registration to a template and propagation of the transform to masks and annotations, resampling, MIP.
+- **Transforms**: intensity normalization, CT windowing presets, rescaling, resample-to-reference, DICOM ↔ NIfTI.
+- **Geometry**: rotate, flip, crop, crop-to-content, crop-and-pad — all keep the affine in step with the data (tested on world coordinates).
+- **QC**: geometry, orientations, NaN/Inf, empty slices, image ↔ mask ↔ annotation coherence, via Python or `niqc`.
+- **Analysis and visualization**: volume comparison (Dice, Hausdorff, …), statistics, dataset splits, overlays, montages.
+- **CLIs**: `nii` for quick edits (`nii flip scans/ out/ --axis 0`) and config-driven pipelines (`nii run`), `niqc` for QC.
+
+## 📖 Documentation and examples
+
+- Full documentation: [giuliorusso.github.io/Ni-Dataset](https://giuliorusso.github.io/Ni-Dataset/)
+- End-to-end CT pipeline: [`examples/ct_pipeline/`](https://github.com/GiulioRusso/Ni-Dataset/tree/main/examples/ct_pipeline) (formerly the CT-Manager repo)
+
+Dependencies are declared in [`pyproject.toml`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/pyproject.toml). Skull stripping additionally needs a local [FSL](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/install/index) installation.
+
+## 📚 Used in
+
+<!-- TODO(Giulio): list the publications that used nidataset, with DOIs. -->
+
+If you use nidataset in your research, please cite it ([`CITATION.cff`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/CITATION.cff)).
+
+## 🤝 Contributing
+
+See [`CONTRIBUTING.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/CONTRIBUTING.md) and the [`CHANGELOG.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/CHANGELOG.md).
+
+Authors: Giulio Russo, [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
 
 ## ⚖️ License
 
 MIT License
-
