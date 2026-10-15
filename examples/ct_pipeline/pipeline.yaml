@@ -1,4 +1,4 @@
-# End-to-end CT pipeline (formerly the CT-Manager repo).
+# End-to-end CT pipeline.
 #
 #   python make_synthetic.py      # tiny synthetic dataset in ./data
 #   nii run pipeline.yaml         # or: python -c "import nidataset as nid; nid.run_pipeline('pipeline.yaml')"
