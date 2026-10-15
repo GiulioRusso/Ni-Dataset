@@ -5,6 +5,7 @@ Provides common validation, file discovery, and directory creation utilities
 to eliminate duplicated boilerplate across the package.
 """
 
+import json
 import logging
 import os
 from collections.abc import Generator
@@ -114,3 +115,36 @@ def validate_view(view: str) -> None:
     valid_views = {"axial", "coronal", "sagittal"}
     if view not in valid_views:
         raise ValueError(f"Error: view must be one of {valid_views}. Got '{view}' instead.")
+
+
+def load_mapping(path: str) -> dict:
+    """
+    Load a ``.json`` (stdlib) or ``.yaml`` / ``.yml`` (needs PyYAML) file whose root is a mapping.
+
+    An empty file loads as ``{}``.
+
+    :raises FileNotFoundError: If *path* does not exist.
+    :raises ImportError:       If a YAML file is given but PyYAML is missing.
+    :raises ValueError:        On an unsupported extension or a non-mapping root.
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Config file not found: '{path}'")
+    ext = os.path.splitext(path)[1].lower()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    if ext in (".yaml", ".yml"):
+        try:
+            import yaml
+        except ImportError as exc:  # ponytail: yaml is optional, JSON works dep-free
+            raise ImportError(
+                "YAML config requires the optional 'pyyaml' package. "
+                "Install it (`pip install 'nidataset[yaml]'`) or use a .json config instead."
+            ) from exc
+        data = yaml.safe_load(text) or {}
+    elif ext == ".json":
+        data = json.loads(text) if text.strip() else {}
+    else:
+        raise ValueError(f"Unsupported config extension '{ext}'. Use .json, .yaml or .yml.")
+    if not isinstance(data, dict):
+        raise ValueError(f"Config root must be a mapping, got {type(data).__name__}.")
+    return data

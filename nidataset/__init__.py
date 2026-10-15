@@ -1,7 +1,7 @@
 # nidataset/__init__.py
 
-# Quality-control subpackage (additive). Exposed as ``nid.qc``.
-from . import qc
+# Subpackages exposed as ``nid.qc`` (quality control) and ``nid.pipeline`` (config-driven runs).
+from . import pipeline, qc
 from ._version import __version__
 from .analysis import (
     compare_volumes,
@@ -11,6 +11,7 @@ from .analysis import (
     split_dataset,
 )
 from .draw import draw_2D_annotations, draw_3D_boxes, from_2D_to_3D_coords
+from .pipeline import run_pipeline
 from .preprocessing import (
     mip,
     mip_dataset,
@@ -104,6 +105,7 @@ __all__ = [
     "numpy_to_nifti",
     "overlay_mask_on_volume",
     "overlay_mask_on_volume_dataset",
+    "pipeline",
     "qc",
     "register_CTA",
     "register_CTA_dataset",
@@ -119,6 +121,7 @@ __all__ = [
     "rescale_intensity_dataset",
     "rotate_volume",
     "rotate_volume_dataset",
+    "run_pipeline",
     "skull_CTA",
     "skull_CTA_dataset",
     "split_dataset",
