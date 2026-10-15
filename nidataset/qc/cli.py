@@ -18,10 +18,9 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import Dict, List, Optional
 
 from .config import QCConfig
-from .report import Report, DatasetReport, to_json, OK, WARNING, ERROR
+from .report import ERROR, OK, WARNING, DatasetReport, Report, to_json
 
 # Status -> (symbol, ANSI colour).
 _SYMBOL = {OK: ("✓", "\033[32m"), WARNING: ("⚠", "\033[33m"), ERROR: ("✗", "\033[31m")}
@@ -67,22 +66,21 @@ def _print_dataset(ds: DatasetReport, color: bool, verbose: bool, stream) -> Non
             print(f"  {key} outliers: {paths}", file=stream)
 
 
-def _summary(counts: Dict[str, int], color: bool, stream) -> None:
+def _summary(counts: dict[str, int], color: bool, stream) -> None:
     parts = [_paint(s, f"{counts.get(s, 0)} {s}", color) for s in (OK, WARNING, ERROR)]
-    print(f"\n{_BOLD if color else ''}Summary:{_RESET if color else ''} " + "  ".join(parts),
-          file=stream)
+    print(f"\n{_BOLD if color else ''}Summary:{_RESET if color else ''} " + "  ".join(parts), file=stream)
 
 
-def _specs_from_reports(items: List[Report]) -> List[Dict[str, Optional[str]]]:
+def _specs_from_reports(items: list[Report]) -> list[dict[str, str | None]]:
     """Build thumbnail specs from per-item report metadata."""
-    specs: List[Dict[str, Optional[str]]] = []
+    specs: list[dict[str, str | None]] = []
     for it in items:
         if it.kind == "volume":
             specs.append({"image": it.target})
         else:
-            specs.append({"image": it.meta.get("image"),
-                          "mask": it.meta.get("mask"),
-                          "annotation": it.meta.get("annotation")})
+            specs.append(
+                {"image": it.meta.get("image"), "mask": it.meta.get("mask"), "annotation": it.meta.get("annotation")}
+            )
     return specs
 
 
@@ -103,25 +101,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("path", nargs="?", help="NIfTI file, folder, or .csv manifest of pairs/triples.")
     p.add_argument("--pair", nargs=2, metavar=("IMG", "MASK"), help="Explicit image/mask pair.")
-    p.add_argument("--triple", nargs=3, metavar=("IMG", "MASK", "ANN"),
-                   help="Explicit image/mask/annotation triple.")
+    p.add_argument("--triple", nargs=3, metavar=("IMG", "MASK", "ANN"), help="Explicit image/mask/annotation triple.")
     p.add_argument("--config", metavar="FILE", help="QCConfig from a .json or .yaml file.")
-    p.add_argument("--json", nargs="?", const="-", metavar="FILE",
-                   help="Emit the structured report as JSON (to FILE, or stdout if omitted).")
-    p.add_argument("--strict", action="store_true",
-                   help="Exit non-zero if any check is an error (for CI / pre-commit).")
+    p.add_argument(
+        "--json",
+        nargs="?",
+        const="-",
+        metavar="FILE",
+        help="Emit the structured report as JSON (to FILE, or stdout if omitted).",
+    )
+    p.add_argument(
+        "--strict", action="store_true", help="Exit non-zero if any check is an error (for CI / pre-commit)."
+    )
     p.add_argument("--thumbnails", metavar="DIR", help="Write a PNG thumbnail grid into DIR.")
     p.add_argument("--verbose", "-v", action="store_true", help="Show every check, not just issues.")
     p.add_argument("--no-color", action="store_true", help="Disable coloured output.")
     return p
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Run the ``niqc`` CLI. Returns the process exit code."""
     # Imported here so check functions don't pull the CLI at module import.
     from .checks import check_volume
-    from .pairs import check_pair, check_triple
     from .dataset import check_dataset
+    from .pairs import check_pair, check_triple
 
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -171,6 +174,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Thumbnails.
     if args.thumbnails:
         from .thumbnails import thumbnail_grid
+
         items = result.items if is_dataset else [result]
         specs = _specs_from_reports(items)
         out_png = os.path.join(args.thumbnails, "qc_thumbnails.png")

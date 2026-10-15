@@ -9,24 +9,24 @@ affine untouched silently corrupts left/right and orientation metadata.
 These are the "quick shell op" counterparts exposed by the ``nii`` CLI.
 """
 
-import os
 import logging
-from typing import List, Optional, Tuple
+import os
+from typing import Optional
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 
 from ._helpers import (
-    validate_nifti_path,
     ensure_dir,
-    strip_nifti_ext,
     run_nifti_dataset,
+    strip_nifti_ext,
+    validate_nifti_path,
 )
 
 logger = logging.getLogger("nidataset")
 
 
-def _relabel_affine(affine: np.ndarray, old_shape: Tuple[int, ...], op) -> np.ndarray:
+def _relabel_affine(affine: np.ndarray, old_shape: tuple[int, ...], op) -> np.ndarray:
     """
     Return the affine after a pure voxel-relabeling ``op`` (e.g. ``np.flip`` or
     ``np.rot90``) is applied to the data.
@@ -40,7 +40,7 @@ def _relabel_affine(affine: np.ndarray, old_shape: Tuple[int, ...], op) -> np.nd
     new = op(lin)  # new[pos] == old flat index that landed at pos
     new_shape = new.shape
 
-    def old_vox(pos: Tuple[int, ...]) -> np.ndarray:
+    def old_vox(pos: tuple[int, ...]) -> np.ndarray:
         return np.array(np.unravel_index(int(new[pos]), old_shape), dtype=np.float64)
 
     origin = old_vox((0, 0, 0))
@@ -63,11 +63,10 @@ def _save_like(data: np.ndarray, affine: np.ndarray, header, out_file: str) -> N
 
 # Rotation (90-degree multiples)
 
-def rotate_volume(nii_path: str,
-                  output_path: str,
-                  k: int = 1,
-                  axes: Tuple[int, int] = (0, 1),
-                  debug: bool = False) -> str:
+
+def rotate_volume(
+    nii_path: str, output_path: str, k: int = 1, axes: tuple[int, int] = (0, 1), debug: bool = False
+) -> str:
     """
     Rotate a NIfTI volume by ``k`` * 90 degrees in the plane spanned by ``axes``.
 
@@ -108,22 +107,19 @@ def rotate_volume(nii_path: str,
     return out_file
 
 
-def rotate_volume_dataset(nii_folder: str,
-                          output_path: str,
-                          k: int = 1,
-                          axes: Tuple[int, int] = (0, 1),
-                          debug: bool = False) -> List[str]:
+def rotate_volume_dataset(
+    nii_folder: str, output_path: str, k: int = 1, axes: tuple[int, int] = (0, 1), debug: bool = False
+) -> list[str]:
     """Rotate every NIfTI in ``nii_folder`` by ``k`` * 90 degrees. See :func:`rotate_volume`."""
-    return run_nifti_dataset(rotate_volume, nii_folder, output_path,
-                             desc="Rotating volumes", debug=debug, k=k, axes=axes)
+    return run_nifti_dataset(
+        rotate_volume, nii_folder, output_path, desc="Rotating volumes", debug=debug, k=k, axes=axes
+    )
 
 
 # Flip
 
-def flip_volume(nii_path: str,
-                output_path: str,
-                axis: int = 0,
-                debug: bool = False) -> str:
+
+def flip_volume(nii_path: str, output_path: str, axis: int = 0, debug: bool = False) -> str:
     """
     Flip (mirror) a NIfTI volume along a voxel ``axis``, updating the affine so
     world space is preserved.
@@ -160,21 +156,15 @@ def flip_volume(nii_path: str,
     return out_file
 
 
-def flip_volume_dataset(nii_folder: str,
-                        output_path: str,
-                        axis: int = 0,
-                        debug: bool = False) -> List[str]:
+def flip_volume_dataset(nii_folder: str, output_path: str, axis: int = 0, debug: bool = False) -> list[str]:
     """Flip every NIfTI in ``nii_folder`` along ``axis``. See :func:`flip_volume`."""
-    return run_nifti_dataset(flip_volume, nii_folder, output_path,
-                             desc="Flipping volumes", debug=debug, axis=axis)
+    return run_nifti_dataset(flip_volume, nii_folder, output_path, desc="Flipping volumes", debug=debug, axis=axis)
 
 
 # Crop to an explicit box
 
-def crop_volume(nii_path: str,
-                output_path: str,
-                bbox: Tuple[int, int, int, int, int, int],
-                debug: bool = False) -> str:
+
+def crop_volume(nii_path: str, output_path: str, bbox: tuple[int, int, int, int, int, int], debug: bool = False) -> str:
     """
     Crop a NIfTI volume to an explicit voxel box, shifting the affine origin so
     the retained voxels keep their world coordinates.
@@ -202,9 +192,7 @@ def crop_volume(nii_path: str,
     bounds = [(x0, x1), (y0, y1), (z0, z1)]
     for ax, (lo, hi) in enumerate(bounds):
         if not (0 <= lo < hi <= data.shape[ax]):
-            raise ValueError(
-                f"bbox out of range on axis {ax}: got [{lo}, {hi}) for size {data.shape[ax]}."
-            )
+            raise ValueError(f"bbox out of range on axis {ax}: got [{lo}, {hi}) for size {data.shape[ax]}.")
 
     cropped = data[x0:x1, y0:y1, z0:z1]
     new_affine = img.affine.copy()
@@ -220,11 +208,10 @@ def crop_volume(nii_path: str,
 
 # Crop to the minimal box enclosing the foreground
 
-def crop_to_content(nii_path: str,
-                    output_path: str,
-                    threshold: Optional[float] = None,
-                    margin: int = 0,
-                    debug: bool = False) -> str:
+
+def crop_to_content(
+    nii_path: str, output_path: str, threshold: Optional[float] = None, margin: int = 0, debug: bool = False
+) -> str:
     """
     Crop a NIfTI volume to the minimal box enclosing its foreground (the minimum
     enclosing rectangle), trimming empty borders. The affine is shifted so the
@@ -267,7 +254,7 @@ def crop_to_content(nii_path: str,
         stops.append(hi)
 
     bbox = (starts[0], stops[0], starts[1], stops[1], starts[2], stops[2])
-    cropped = data[starts[0]:stops[0], starts[1]:stops[1], starts[2]:stops[2]]
+    cropped = data[starts[0] : stops[0], starts[1] : stops[1], starts[2] : stops[2]]
     new_affine = img.affine.copy()
     new_affine[:3, 3] = img.affine[:3, :3] @ np.array(starts) + img.affine[:3, 3]
 
@@ -279,12 +266,16 @@ def crop_to_content(nii_path: str,
     return out_file
 
 
-def crop_to_content_dataset(nii_folder: str,
-                            output_path: str,
-                            threshold: Optional[float] = None,
-                            margin: int = 0,
-                            debug: bool = False) -> List[str]:
+def crop_to_content_dataset(
+    nii_folder: str, output_path: str, threshold: Optional[float] = None, margin: int = 0, debug: bool = False
+) -> list[str]:
     """Crop every NIfTI in ``nii_folder`` to its foreground box. See :func:`crop_to_content`."""
-    return run_nifti_dataset(crop_to_content, nii_folder, output_path,
-                             desc="Cropping to content", debug=debug,
-                             threshold=threshold, margin=margin)
+    return run_nifti_dataset(
+        crop_to_content,
+        nii_folder,
+        output_path,
+        desc="Cropping to content",
+        debug=debug,
+        threshold=threshold,
+        margin=margin,
+    )

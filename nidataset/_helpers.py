@@ -5,9 +5,10 @@ Provides common validation, file discovery, and directory creation utilities
 to eliminate duplicated boilerplate across the package.
 """
 
-import os
 import logging
-from typing import Callable, List, Generator, Tuple
+import os
+from collections.abc import Generator
+from typing import Callable
 
 logger = logging.getLogger("nidataset")
 
@@ -39,12 +40,10 @@ def validate_nifti_path(nii_path: str) -> None:
     if not os.path.isfile(nii_path):
         raise FileNotFoundError(f"Error: the input file '{nii_path}' does not exist.")
     if not is_nifti(nii_path):
-        raise ValueError(
-            f"Error: invalid file format. Expected a '.nii.gz' or '.nii' file. Got '{nii_path}' instead."
-        )
+        raise ValueError(f"Error: invalid file format. Expected a '.nii.gz' or '.nii' file. Got '{nii_path}' instead.")
 
 
-def list_nifti_files(folder: str) -> List[str]:
+def list_nifti_files(folder: str) -> list[str]:
     """
     Return a sorted list of NIfTI filenames inside *folder*.
 
@@ -65,7 +64,7 @@ def ensure_dir(path: str) -> None:
 
 def iterate_nifti_dataset(
     folder: str,
-) -> Generator[Tuple[str, str], None, None]:
+) -> Generator[tuple[str, str], None, None]:
     """
     Yield ``(full_path, prefix)`` for every NIfTI file in *folder* (sorted).
 
@@ -82,7 +81,7 @@ def run_nifti_dataset(
     desc: str,
     debug: bool = False,
     **kwargs,
-) -> List[str]:
+) -> list[str]:
     """
     Apply *per_file* to every NIfTI in *nii_folder* with a tqdm progress bar.
 
@@ -96,12 +95,12 @@ def run_nifti_dataset(
 
     nii_files = list_nifti_files(nii_folder)
     ensure_dir(output_path)
-    results: List[str] = []
+    results: list[str] = []
     for nii_file in tqdm(nii_files, desc=desc, unit="file"):
         nii_path = os.path.join(nii_folder, nii_file)
         try:
             results.append(per_file(nii_path, output_path, debug=debug, **kwargs))
-        except Exception as e:  # noqa: BLE001 - report and continue over the dataset
+        except Exception as e:
             logger.warning("Error processing %s: %s", nii_file, e)
     return results
 

@@ -4,24 +4,22 @@ Analysis routines for NIfTI datasets.
 Provides volume comparison metrics, intensity statistics, and dataset splitting.
 """
 
-import os
 import csv
 import json
-import random
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+import os
+import random
+from typing import Optional
 
 import nibabel as nib
 import numpy as np
-from tqdm import tqdm
 from scipy.ndimage import distance_transform_edt
+from tqdm import tqdm
 
 from ._helpers import (
-    validate_nifti_path,
-    list_nifti_files,
     ensure_dir,
-    strip_nifti_ext,
-    is_nifti,
+    list_nifti_files,
+    validate_nifti_path,
 )
 
 logger = logging.getLogger("nidataset")
@@ -29,11 +27,14 @@ logger = logging.getLogger("nidataset")
 
 # Volume comparison
 
-def compare_volumes(nii_path_a: str,
-                    nii_path_b: str,
-                    metrics: Optional[List[str]] = None,
-                    mask_path: Optional[str] = None,
-                    debug: bool = False) -> Dict[str, float]:
+
+def compare_volumes(
+    nii_path_a: str,
+    nii_path_b: str,
+    metrics: Optional[list[str]] = None,
+    mask_path: Optional[str] = None,
+    debug: bool = False,
+) -> dict[str, float]:
     """
     Compute voxel-wise similarity metrics between two NIfTI volumes.
 
@@ -41,14 +42,14 @@ def compare_volumes(nii_path_a: str,
     comparing annotations. Both volumes must have the same shape.
 
     Supported metrics:
-        - ``"dice"``      – Dice similarity coefficient (for binary volumes)
-        - ``"jaccard"``   – Jaccard index / IoU (for binary volumes)
-        - ``"hausdorff"`` – Hausdorff distance in voxels (for binary volumes)
-        - ``"mse"``       – Mean Squared Error
-        - ``"mae"``       – Mean Absolute Error
-        - ``"psnr"``      – Peak Signal-to-Noise Ratio
-        - ``"volume_diff"`` – Absolute difference in non-zero voxel count
-        - ``"correlation"`` – Pearson correlation coefficient
+        - ``"dice"``      - Dice similarity coefficient (for binary volumes)
+        - ``"jaccard"``   - Jaccard index / IoU (for binary volumes)
+        - ``"hausdorff"`` - Hausdorff distance in voxels (for binary volumes)
+        - ``"mse"``       - Mean Squared Error
+        - ``"mae"``       - Mean Absolute Error
+        - ``"psnr"``      - Peak Signal-to-Noise Ratio
+        - ``"volume_diff"`` - Absolute difference in non-zero voxel count
+        - ``"correlation"`` - Pearson correlation coefficient
 
     :param nii_path_a:
         Path to the first NIfTI file.
@@ -89,8 +90,7 @@ def compare_volumes(nii_path_a: str,
     {'dice': 0.87, 'hausdorff': 4.2}
     """
 
-    all_metrics = {"dice", "jaccard", "hausdorff", "mse", "mae", "psnr",
-                   "volume_diff", "correlation"}
+    all_metrics = {"dice", "jaccard", "hausdorff", "mse", "mae", "psnr", "volume_diff", "correlation"}
 
     if metrics is None:
         metrics = sorted(all_metrics)
@@ -107,8 +107,7 @@ def compare_volumes(nii_path_a: str,
 
     if data_a.shape != data_b.shape:
         raise ValueError(
-            f"Shape mismatch: '{nii_path_a}' has shape {data_a.shape}, "
-            f"'{nii_path_b}' has shape {data_b.shape}."
+            f"Shape mismatch: '{nii_path_a}' has shape {data_a.shape}, '{nii_path_b}' has shape {data_b.shape}."
         )
 
     if mask_path is not None:
@@ -117,7 +116,7 @@ def compare_volumes(nii_path_a: str,
         data_a = data_a[mask]
         data_b = data_b[mask]
 
-    results: Dict[str, float] = {}
+    results: dict[str, float] = {}
 
     # Binary metrics
     bin_a = (data_a > 0).astype(np.float64)
@@ -163,7 +162,7 @@ def compare_volumes(nii_path_a: str,
         elif max_val == 0:
             results["psnr"] = 0.0
         else:
-            results["psnr"] = float(10.0 * np.log10(max_val ** 2 / mse))
+            results["psnr"] = float(10.0 * np.log10(max_val**2 / mse))
 
     if "volume_diff" in metrics:
         results["volume_diff"] = abs(int(np.count_nonzero(data_a)) - int(np.count_nonzero(data_b)))
@@ -181,11 +180,9 @@ def compare_volumes(nii_path_a: str,
     return results
 
 
-def compare_volumes_dataset(nii_folder_a: str,
-                            nii_folder_b: str,
-                            output_path: str,
-                            metrics: Optional[List[str]] = None,
-                            debug: bool = False) -> str:
+def compare_volumes_dataset(
+    nii_folder_a: str, nii_folder_b: str, output_path: str, metrics: Optional[list[str]] = None, debug: bool = False
+) -> str:
     """
     Compute comparison metrics between matching NIfTI files in two folders.
 
@@ -215,8 +212,7 @@ def compare_volumes_dataset(nii_folder_a: str,
     ensure_dir(output_path)
 
     if metrics is None:
-        metrics = sorted({"dice", "jaccard", "hausdorff", "mse", "mae", "psnr",
-                          "volume_diff", "correlation"})
+        metrics = sorted({"dice", "jaccard", "hausdorff", "mse", "mae", "psnr", "volume_diff", "correlation"})
 
     rows = []
     for fname in tqdm(common, desc="Comparing volumes", unit="file"):
@@ -240,9 +236,8 @@ def compare_volumes_dataset(nii_folder_a: str,
 
 # Intensity statistics
 
-def compute_volume_statistics(nii_path: str,
-                              mask_path: Optional[str] = None,
-                              debug: bool = False) -> Dict[str, float]:
+
+def compute_volume_statistics(nii_path: str, mask_path: Optional[str] = None, debug: bool = False) -> dict[str, float]:
     """
     Compute detailed intensity statistics for a single NIfTI volume.
 
@@ -274,7 +269,7 @@ def compute_volume_statistics(nii_path: str,
 
     nonzero_values = values[values != 0]
 
-    stats: Dict[str, float] = {
+    stats: dict[str, float] = {
         "mean": float(np.mean(values)),
         "std": float(np.std(values)),
         "min": float(np.min(values)),
@@ -311,10 +306,9 @@ def compute_volume_statistics(nii_path: str,
     return stats
 
 
-def compute_volume_statistics_dataset(nii_folder: str,
-                                      output_path: str,
-                                      mask_folder: Optional[str] = None,
-                                      debug: bool = False) -> str:
+def compute_volume_statistics_dataset(
+    nii_folder: str, output_path: str, mask_folder: Optional[str] = None, debug: bool = False
+) -> str:
     """
     Compute intensity statistics for all NIfTI files in a folder and save
     as ``volume_statistics.csv``.
@@ -365,12 +359,15 @@ def compute_volume_statistics_dataset(nii_folder: str,
 
 # Dataset splitting
 
-def split_dataset(nii_folder: str,
-                  output_path: str,
-                  ratios: Tuple[float, float, float] = (0.7, 0.15, 0.15),
-                  seed: int = 42,
-                  copy_files: bool = False,
-                  debug: bool = False) -> Dict[str, List[str]]:
+
+def split_dataset(
+    nii_folder: str,
+    output_path: str,
+    ratios: tuple[float, float, float] = (0.7, 0.15, 0.15),
+    seed: int = 42,
+    copy_files: bool = False,
+    debug: bool = False,
+) -> dict[str, list[str]]:
     """
     Split a NIfTI dataset folder into train / val / test subsets.
 
@@ -414,10 +411,10 @@ def split_dataset(nii_folder: str,
     n_train = int(n * ratios[0])
     n_val = int(n * ratios[1])
 
-    splits: Dict[str, List[str]] = {
+    splits: dict[str, list[str]] = {
         "train": shuffled[:n_train],
-        "val": shuffled[n_train:n_train + n_val],
-        "test": shuffled[n_train + n_val:],
+        "val": shuffled[n_train : n_train + n_val],
+        "test": shuffled[n_train + n_val :],
     }
 
     # Save manifest
@@ -429,6 +426,7 @@ def split_dataset(nii_folder: str,
     # Optionally copy files
     if copy_files:
         import shutil
+
         for subset, files in splits.items():
             subset_dir = os.path.join(output_path, subset)
             ensure_dir(subset_dir)

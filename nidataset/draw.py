@@ -6,18 +6,17 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 
-from ._helpers import validate_nifti_path, ensure_dir, strip_nifti_ext
+from ._helpers import ensure_dir, strip_nifti_ext, validate_nifti_path
 
 logger = logging.getLogger("nidataset")
 
 
 # Draw
 
-def draw_3D_boxes(df: pd.DataFrame,
-                  nii_path: str,
-                  output_path: str,
-                  intensity_based_on_score: bool = False,
-                  debug: bool = False) -> str:
+
+def draw_3D_boxes(
+    df: pd.DataFrame, nii_path: str, output_path: str, intensity_based_on_score: bool = False, debug: bool = False
+) -> str:
     """
     Draw 3D bounding boxes into a NIfTI volume.
 
@@ -101,12 +100,12 @@ def draw_3D_boxes(df: pd.DataFrame,
     ensure_dir(output_path)
 
     # define expected columns based on intensity_based_on_score flag
-    coord_columns = ['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']
-    expected_columns = ['SCORE'] + coord_columns if intensity_based_on_score else coord_columns
+    coord_columns = ["X_MIN", "Y_MIN", "Z_MIN", "X_MAX", "Y_MAX", "Z_MAX"]
+    expected_columns = ["SCORE", *coord_columns] if intensity_based_on_score else coord_columns
 
     # validate dataframe
     if not all(col in df.columns for col in expected_columns):
-         raise ValueError(f"Error: The input dataframe must contain columns: {expected_columns}")
+        raise ValueError(f"Error: The input dataframe must contain columns: {expected_columns}")
 
     # load the nii.gz file
     nifti_image = nib.load(nii_path)
@@ -119,12 +118,12 @@ def draw_3D_boxes(df: pd.DataFrame,
     # process each row in the tensor to draw boxes
     for _, row in df.iterrows():
         if intensity_based_on_score:
-            score = row['SCORE']
-            x_min, y_min, z_min = row['X_MIN'], row['Y_MIN'], row['Z_MIN']
-            x_max, y_max, z_max = row['X_MAX'], row['Y_MAX'], row['Z_MAX']
+            score = row["SCORE"]
+            x_min, y_min, z_min = row["X_MIN"], row["Y_MIN"], row["Z_MIN"]
+            x_max, y_max, z_max = row["X_MAX"], row["Y_MAX"], row["Z_MAX"]
         else:
-            x_min, y_min, z_min = row['X_MIN'], row['Y_MIN'], row['Z_MIN']
-            x_max, y_max, z_max = row['X_MAX'], row['Y_MAX'], row['Z_MAX']
+            x_min, y_min, z_min = row["X_MIN"], row["Y_MIN"], row["Z_MIN"]
+            x_max, y_max, z_max = row["X_MAX"], row["Y_MAX"], row["Z_MAX"]
 
         # determine the intensity for the box based on the score
         if intensity_based_on_score:
@@ -138,7 +137,11 @@ def draw_3D_boxes(df: pd.DataFrame,
             intensity = 1
 
         # draw the box
-        output_data[int(x_min):int(x_max), int(y_min):int(y_max), int(z_min):int(z_max),] = intensity
+        output_data[
+            int(x_min) : int(x_max),
+            int(y_min) : int(y_max),
+            int(z_min) : int(z_max),
+        ] = intensity
 
     # extract filename prefix
     prefix = strip_nifti_ext(os.path.basename(nii_path))
@@ -153,11 +156,9 @@ def draw_3D_boxes(df: pd.DataFrame,
     return nii_output_path
 
 
-def draw_2D_annotations(annotation_path: str,
-                        image_path: str,
-                        output_path: str,
-                        radius: int = 5,
-                        debug: bool = False) -> str:
+def draw_2D_annotations(
+    annotation_path: str, image_path: str, output_path: str, radius: int = 5, debug: bool = False
+) -> str:
     """
     Draw 2D annotations on an image based on slice-format CSV files.
 
@@ -269,12 +270,12 @@ def draw_2D_annotations(annotation_path: str,
         raise ValueError("Error: The annotation dataframe contains NaN values.")
 
     # determine annotation format (slice formats only)
-    center_columns = ['CENTER_X', 'CENTER_Y']
-    bbox_columns = ['X_MIN', 'Y_MIN', 'X_MAX', 'Y_MAX']
-    radius_columns = ['CENTER_X', 'CENTER_Y', 'RADIUS_X', 'RADIUS_Y']
+    center_columns = ["CENTER_X", "CENTER_Y"]
+    bbox_columns = ["X_MIN", "Y_MIN", "X_MAX", "Y_MAX"]
+    radius_columns = ["CENTER_X", "CENTER_Y", "RADIUS_X", "RADIUS_Y"]
 
     # check for volume format (not supported)
-    volume_indicators = ['CENTER_Z', 'Z_MIN', 'Z_MAX', 'RADIUS_Z']
+    volume_indicators = ["CENTER_Z", "Z_MIN", "Z_MAX", "RADIUS_Z"]
     if any(col in df.columns for col in volume_indicators):
         raise ValueError(
             "Error: This function only supports slice-format annotations. "
@@ -311,8 +312,8 @@ def draw_2D_annotations(annotation_path: str,
     # draw annotations based on format
     if is_center_format:
         for _, row in df.iterrows():
-            center_x = int(row['CENTER_X'])
-            center_y = int(row['CENTER_Y'])
+            center_x = int(row["CENTER_X"])
+            center_y = int(row["CENTER_Y"])
 
             # draw circle with specified radius
             cv2.circle(image, (center_x, center_y), radius, yellow, thickness)
@@ -323,14 +324,13 @@ def draw_2D_annotations(annotation_path: str,
 
     elif is_radius_format:
         for _, row in df.iterrows():
-            center_x = int(row['CENTER_X'])
-            center_y = int(row['CENTER_Y'])
-            radius_x = int(row['RADIUS_X'])
-            radius_y = int(row['RADIUS_Y'])
+            center_x = int(row["CENTER_X"])
+            center_y = int(row["CENTER_Y"])
+            radius_x = int(row["RADIUS_X"])
+            radius_y = int(row["RADIUS_Y"])
 
             # draw ellipse with axes corresponding to radii
-            cv2.ellipse(image, (center_x, center_y), (radius_x, radius_y),
-                       0, 0, 360, yellow, thickness)
+            cv2.ellipse(image, (center_x, center_y), (radius_x, radius_y), 0, 0, 360, yellow, thickness)
             # draw center point
             cv2.circle(image, (center_x, center_y), 1, yellow, -1)
 
@@ -338,10 +338,10 @@ def draw_2D_annotations(annotation_path: str,
 
     elif is_bbox_format:
         for _, row in df.iterrows():
-            x_min = int(row['X_MIN'])
-            y_min = int(row['Y_MIN'])
-            x_max = int(row['X_MAX'])
-            y_max = int(row['Y_MAX'])
+            x_min = int(row["X_MIN"])
+            y_min = int(row["Y_MIN"])
+            x_max = int(row["X_MAX"])
+            y_max = int(row["Y_MAX"])
 
             # draw rectangle
             cv2.rectangle(image, (x_min, y_min), (x_max, y_max), yellow, thickness)
@@ -350,7 +350,7 @@ def draw_2D_annotations(annotation_path: str,
 
     # extract filename and extension
     base_name = os.path.basename(image_path)
-    name, ext = os.path.splitext(base_name)
+    name, _ext = os.path.splitext(base_name)
     output_filename = f"{name}_annotated.png"
     output_image_path = os.path.join(output_path, output_filename)
 
@@ -364,8 +364,8 @@ def draw_2D_annotations(annotation_path: str,
 
 # Coords conversion
 
-def from_2D_to_3D_coords(df: pd.DataFrame,
-                         view: str) -> pd.DataFrame:
+
+def from_2D_to_3D_coords(df: pd.DataFrame, view: str) -> pd.DataFrame:
     """
     Convert 2D bounding-box or point coordinates into a 3D coordinate system
     based on the specified anatomical view.
@@ -431,7 +431,7 @@ def from_2D_to_3D_coords(df: pd.DataFrame,
     """
 
     # validate the view parameter
-    valid_views = {'axial', 'coronal', 'sagittal'}
+    valid_views = {"axial", "coronal", "sagittal"}
     if view not in valid_views:
         raise ValueError(f"Error: The view must be one of {valid_views}. Got '{view}'.")
 
@@ -441,9 +441,9 @@ def from_2D_to_3D_coords(df: pd.DataFrame,
 
     # validate the column names
     if df.shape[1] == 6:
-        expected_columns = ['X_MIN', 'Y_MIN', 'SLICE_NUMBER_MIN', 'X_MAX', 'Y_MAX', 'SLICE_NUMBER_MAX']
+        expected_columns = ["X_MIN", "Y_MIN", "SLICE_NUMBER_MIN", "X_MAX", "Y_MAX", "SLICE_NUMBER_MAX"]
     else:
-        expected_columns = ['X', 'Y', 'SLICE_NUMBER']
+        expected_columns = ["X", "Y", "SLICE_NUMBER"]
 
     if not all(col in df.columns for col in expected_columns):
         raise ValueError(f"Error: The input dataframe must contain columns: {expected_columns}")
@@ -453,24 +453,28 @@ def from_2D_to_3D_coords(df: pd.DataFrame,
 
     # apply coordinate switching based on the anatomical view
     if df.shape[1] == 6:
-        if view == 'axial':
-            result_df[['X_MIN', 'Y_MIN', 'X_MAX', 'Y_MAX']] = df[['Y_MIN', 'X_MIN', 'Y_MAX', 'X_MAX']]
-        elif view == 'coronal':
-            result_df[['X_MIN', 'Y_MIN', 'SLICE_NUMBER_MIN', 'X_MAX', 'Y_MAX', 'SLICE_NUMBER_MAX']] = df[['SLICE_NUMBER_MIN', 'X_MIN', 'Y_MIN', 'SLICE_NUMBER_MAX', 'X_MAX', 'Y_MAX']]
-        elif view == 'sagittal':
-            result_df[['X_MIN', 'SLICE_NUMBER_MIN', 'Y_MIN', 'X_MAX', 'SLICE_NUMBER_MAX', 'Y_MAX']] = df[['SLICE_NUMBER_MIN', 'X_MIN', 'Y_MIN', 'SLICE_NUMBER_MAX', 'X_MAX', 'Y_MAX']]
+        if view == "axial":
+            result_df[["X_MIN", "Y_MIN", "X_MAX", "Y_MAX"]] = df[["Y_MIN", "X_MIN", "Y_MAX", "X_MAX"]]
+        elif view == "coronal":
+            result_df[["X_MIN", "Y_MIN", "SLICE_NUMBER_MIN", "X_MAX", "Y_MAX", "SLICE_NUMBER_MAX"]] = df[
+                ["SLICE_NUMBER_MIN", "X_MIN", "Y_MIN", "SLICE_NUMBER_MAX", "X_MAX", "Y_MAX"]
+            ]
+        elif view == "sagittal":
+            result_df[["X_MIN", "SLICE_NUMBER_MIN", "Y_MIN", "X_MAX", "SLICE_NUMBER_MAX", "Y_MAX"]] = df[
+                ["SLICE_NUMBER_MIN", "X_MIN", "Y_MIN", "SLICE_NUMBER_MAX", "X_MAX", "Y_MAX"]
+            ]
     elif df.shape[1] == 3:
-        if view == 'axial':
-            result_df[['X', 'Y']] = df[['Y', 'X']]
-        elif view == 'coronal':
-            result_df[['X', 'Y', 'SLICE_NUMBER']] = df[['SLICE_NUMBER', 'X', 'Y']]
-        elif view == 'sagittal':
-            result_df[['X', 'SLICE_NUMBER', 'Y']] = df[['SLICE_NUMBER', 'X', 'Y']]
+        if view == "axial":
+            result_df[["X", "Y"]] = df[["Y", "X"]]
+        elif view == "coronal":
+            result_df[["X", "Y", "SLICE_NUMBER"]] = df[["SLICE_NUMBER", "X", "Y"]]
+        elif view == "sagittal":
+            result_df[["X", "SLICE_NUMBER", "Y"]] = df[["SLICE_NUMBER", "X", "Y"]]
 
     # rename columns
     if df.shape[1] == 6:
-        result_df.columns = ['X_MIN', 'Y_MIN', 'Z_MIN', 'X_MAX', 'Y_MAX', 'Z_MAX']
+        result_df.columns = ["X_MIN", "Y_MIN", "Z_MIN", "X_MAX", "Y_MAX", "Z_MAX"]
     else:
-        result_df.columns = ['X', 'Y', 'Z']
+        result_df.columns = ["X", "Y", "Z"]
 
     return result_df

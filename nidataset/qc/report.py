@@ -10,8 +10,8 @@ power both the Python API and the ``niqc`` CLI.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 # Status levels, ordered from best to worst. Kept as plain strings so reports
 # stay JSON-serializable without custom encoders.
@@ -22,7 +22,7 @@ ERROR = "error"
 _SEVERITY = {OK: 0, WARNING: 1, ERROR: 2}
 
 
-def worst_status(statuses: List[str]) -> str:
+def worst_status(statuses: list[str]) -> str:
     """Return the most severe status in *statuses* (``ok`` if empty)."""
     return max(statuses, key=lambda s: _SEVERITY[s], default=OK)
 
@@ -63,7 +63,7 @@ class CheckResult:
     message: str
     value: Any = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable ``dict`` of this result."""
         d = asdict(self)
         d["value"] = _to_jsonable(self.value)
@@ -83,8 +83,8 @@ class Report:
 
     target: str
     kind: str
-    results: List[CheckResult] = field(default_factory=list)
-    meta: Dict[str, Any] = field(default_factory=dict)
+    results: list[CheckResult] = field(default_factory=list)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     def add(self, name: str, status: str, message: str, value: Any = None) -> CheckResult:
         """Append a :class:`CheckResult` and return it."""
@@ -97,18 +97,18 @@ class Report:
         """Worst status across all contained checks."""
         return worst_status([r.status for r in self.results])
 
-    def counts(self) -> Dict[str, int]:
+    def counts(self) -> dict[str, int]:
         """Return ``{ok, warning, error}`` tallies across checks."""
         out = {OK: 0, WARNING: 0, ERROR: 0}
         for r in self.results:
             out[r.status] += 1
         return out
 
-    def issues(self) -> List[CheckResult]:
+    def issues(self) -> list[CheckResult]:
         """Return only the warning/error results (the ones worth reading)."""
         return [r for r in self.results if r.status != OK]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable ``dict`` of the whole report."""
         return {
             "target": self.target,
@@ -131,26 +131,26 @@ class DatasetReport:
     """
 
     root: str
-    items: List[Report] = field(default_factory=list)
-    distributions: Dict[str, Any] = field(default_factory=dict)
+    items: list[Report] = field(default_factory=list)
+    distributions: dict[str, Any] = field(default_factory=dict)
 
     @property
     def status(self) -> str:
         """Worst status across all items."""
         return worst_status([it.status for it in self.items])
 
-    def counts(self) -> Dict[str, int]:
+    def counts(self) -> dict[str, int]:
         """Per-item status tally (one count per item, by its worst status)."""
         out = {OK: 0, WARNING: 0, ERROR: 0}
         for it in self.items:
             out[it.status] += 1
         return out
 
-    def worst_first(self) -> List[Report]:
+    def worst_first(self) -> list[Report]:
         """Items sorted worst status first, ties keep input (sorted) order."""
         return sorted(self.items, key=lambda it: -_SEVERITY[it.status])
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable ``dict`` of the dataset report."""
         return {
             "root": self.root,
@@ -162,7 +162,7 @@ class DatasetReport:
         }
 
 
-def to_json(report: Any, path: Optional[str] = None, indent: int = 2) -> str:
+def to_json(report: Any, path: str | None = None, indent: int = 2) -> str:
     """
     Serialize a :class:`Report` / :class:`DatasetReport` (or its ``dict``) to JSON.
 

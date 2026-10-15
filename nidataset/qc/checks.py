@@ -19,14 +19,13 @@ axis points to (e.g. ``('R', 'A', 'S')``). SimpleITK uses the reversed axis orde
 from __future__ import annotations
 
 import os
-from typing import Optional, Tuple
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 
-from .._helpers import validate_nifti_path, is_nifti, logger
+from .._helpers import is_nifti, logger, validate_nifti_path
 from .config import QCConfig
-from .report import Report, OK, WARNING, ERROR
+from .report import ERROR, OK, WARNING, Report
 
 # dtypes that several NIfTI readers handle poorly (the NIfTI-1 spec has no
 # official 64-bit integer datatype; many tools truncate or refuse them).
@@ -38,14 +37,15 @@ def _direction(affine: np.ndarray) -> np.ndarray:
     return np.asarray(affine, dtype=np.float64)[:3, :3]
 
 
-def _spatial_shape(shape: Tuple[int, ...]) -> Tuple[int, ...]:
+def _spatial_shape(shape: tuple[int, ...]) -> tuple[int, ...]:
     """Return the first three (spatial) dimensions of a volume shape."""
     return tuple(shape[:3])
 
 
 # Geometry
 
-def _check_geometry(img: "nib.Nifti1Image", config: QCConfig, report: Report) -> None:
+
+def _check_geometry(img: nib.Nifti1Image, config: QCConfig, report: Report) -> None:
     """Run all affine / orientation / spacing checks on *img* into *report*."""
     affine = img.affine
 
@@ -63,8 +63,7 @@ def _check_geometry(img: "nib.Nifti1Image", config: QCConfig, report: Report) ->
     # voxel->world is not invertible, so resampling/registration is meaningless.
     det = float(np.linalg.det(_direction(affine)))
     if abs(det) <= config.affine_atol:
-        report.add("affine_nonsingular", ERROR,
-                   f"Affine direction matrix is singular (det={det:.3e}).", det)
+        report.add("affine_nonsingular", ERROR, f"Affine direction matrix is singular (det={det:.3e}).", det)
     else:
         report.add("affine_nonsingular", OK, f"Affine is non-singular (det={det:.3e}).", det)
 
@@ -76,9 +75,9 @@ def _check_geometry(img: "nib.Nifti1Image", config: QCConfig, report: Report) ->
     elif axcodes == config.expected_orientation:
         report.add("orientation", OK, f"Orientation {axcodes} matches expectation.", axcodes)
     else:
-        report.add("orientation", ERROR,
-                   f"Orientation {axcodes} differs from expected {config.expected_orientation}.",
-                   axcodes)
+        report.add(
+            "orientation", ERROR, f"Orientation {axcodes} differs from expected {config.expected_orientation}.", axcodes
+        )
 
     # --- spacing -----------------------------------------------------------
     zooms = tuple(float(z) for z in img.header.get_zooms()[:3])
@@ -91,18 +90,19 @@ def _check_geometry(img: "nib.Nifti1Image", config: QCConfig, report: Report) ->
         # isotropy as max/min - 1
         anisotropy = max(zooms) / min(zooms) - 1.0
         if anisotropy > config.isotropy_tol:
-            report.add("spacing_isotropy", WARNING,
-                       f"Anisotropic spacing (max/min-1={anisotropy:.3f} > {config.isotropy_tol}).",
-                       anisotropy)
+            report.add(
+                "spacing_isotropy",
+                WARNING,
+                f"Anisotropic spacing (max/min-1={anisotropy:.3f} > {config.isotropy_tol}).",
+                anisotropy,
+            )
         else:
-            report.add("spacing_isotropy", OK, f"Spacing isotropic within tol ({anisotropy:.3f}).",
-                       anisotropy)
+            report.add("spacing_isotropy", OK, f"Spacing isotropic within tol ({anisotropy:.3f}).", anisotropy)
 
         # plausible range
         lo, hi = config.spacing_range
         if any(z < lo or z > hi for z in zooms):
-            report.add("spacing_range", WARNING,
-                       f"Spacing {zooms} outside plausible range [{lo}, {hi}].", zooms)
+            report.add("spacing_range", WARNING, f"Spacing {zooms} outside plausible range [{lo}, {hi}].", zooms)
         else:
             report.add("spacing_range", OK, f"Spacing within range [{lo}, {hi}].", zooms)
 
@@ -115,15 +115,18 @@ def _check_geometry(img: "nib.Nifti1Image", config: QCConfig, report: Report) ->
     if scode and qcode:
         max_diff = float(np.max(np.abs(np.asarray(sform) - np.asarray(qform))))
         if max_diff > config.affine_atol:
-            report.add("sform_qform_agree", WARNING,
-                       f"sform and qform disagree (max|Δ|={max_diff:.3e} > {config.affine_atol}).",
-                       max_diff)
+            report.add(
+                "sform_qform_agree",
+                WARNING,
+                f"sform and qform disagree (max|Δ|={max_diff:.3e} > {config.affine_atol}).",
+                max_diff,
+            )
         else:
-            report.add("sform_qform_agree", OK, f"sform and qform agree (max|Δ|={max_diff:.3e}).",
-                       max_diff)
+            report.add("sform_qform_agree", OK, f"sform and qform agree (max|Δ|={max_diff:.3e}).", max_diff)
 
 
 # Data
+
 
 def _empty_slice_counts(data: np.ndarray, config: QCConfig) -> dict:
     """
@@ -145,7 +148,7 @@ def _empty_slice_counts(data: np.ndarray, config: QCConfig) -> dict:
     return counts
 
 
-def _check_data(img: "nib.Nifti1Image", config: QCConfig, report: Report) -> None:
+def _check_data(img: nib.Nifti1Image, config: QCConfig, report: Report) -> None:
     """Run NaN/inf, dtype, constancy, intensity-range and empty-slice checks."""
     data = np.asarray(img.get_fdata(dtype=np.float64))
 
@@ -153,8 +156,9 @@ def _check_data(img: "nib.Nifti1Image", config: QCConfig, report: Report) -> Non
     n_nan = int(np.isnan(data).sum())
     n_inf = int(np.isinf(data).sum())
     if n_nan or n_inf:
-        report.add("finite_values", ERROR, f"Data has {n_nan} NaN and {n_inf} inf voxels.",
-                   {"nan": n_nan, "inf": n_inf})
+        report.add(
+            "finite_values", ERROR, f"Data has {n_nan} NaN and {n_inf} inf voxels.", {"nan": n_nan, "inf": n_inf}
+        )
         finite = data[np.isfinite(data)]
     else:
         report.add("finite_values", OK, "No NaN or inf in data.", {"nan": 0, "inf": 0})
@@ -164,9 +168,9 @@ def _check_data(img: "nib.Nifti1Image", config: QCConfig, report: Report) -> Non
     dtype = str(img.header.get_data_dtype())
     report.meta["dtype"] = dtype
     if dtype in _PROBLEM_INT_DTYPES:
-        report.add("dtype", WARNING,
-                   f"dtype {dtype} is not portable across NIfTI tools (no 64-bit int in NIfTI-1).",
-                   dtype)
+        report.add(
+            "dtype", WARNING, f"dtype {dtype} is not portable across NIfTI tools (no 64-bit int in NIfTI-1).", dtype
+        )
     elif dtype == "float64" and config.warn_float64:
         report.add("dtype", WARNING, "dtype float64; float32 usually suffices and halves size.", dtype)
     else:
@@ -186,15 +190,21 @@ def _check_data(img: "nib.Nifti1Image", config: QCConfig, report: Report) -> Non
         # --- intensity range -----------------------------------------------
         pcts = np.percentile(finite, [1, 50, 99])
         report.meta["intensity"] = {
-            "min": vmin, "max": vmax,
-            "p1": float(pcts[0]), "p50": float(pcts[1]), "p99": float(pcts[2]),
+            "min": vmin,
+            "max": vmax,
+            "p1": float(pcts[0]),
+            "p50": float(pcts[1]),
+            "p99": float(pcts[2]),
         }
         if config.intensity_range is not None:
             lo, hi = config.intensity_range
             if vmin < lo or vmax > hi:
-                report.add("intensity_range", WARNING,
-                           f"Intensity [{vmin:.3g}, {vmax:.3g}] outside expected [{lo}, {hi}].",
-                           [vmin, vmax])
+                report.add(
+                    "intensity_range",
+                    WARNING,
+                    f"Intensity [{vmin:.3g}, {vmax:.3g}] outside expected [{lo}, {hi}].",
+                    [vmin, vmax],
+                )
             else:
                 report.add("intensity_range", OK, f"Intensity within [{lo}, {hi}].", [vmin, vmax])
 
@@ -208,16 +218,20 @@ def _check_data(img: "nib.Nifti1Image", config: QCConfig, report: Report) -> Non
             worst_frac, worst_axis = frac, axis
     report.meta["empty_slices"] = {a: e for a, (e, _) in empty.items()}
     if worst_axis is not None and worst_frac > config.max_empty_slice_fraction:
-        report.add("empty_slices", WARNING,
-                   f"Axis {worst_axis}: {worst_frac:.0%} of slices empty "
-                   f"(> {config.max_empty_slice_fraction:.0%}).", worst_frac)
+        report.add(
+            "empty_slices",
+            WARNING,
+            f"Axis {worst_axis}: {worst_frac:.0%} of slices empty (> {config.max_empty_slice_fraction:.0%}).",
+            worst_frac,
+        )
     else:
         report.add("empty_slices", OK, "Empty-slice fraction within limit.", worst_frac)
 
 
 # File / shape
 
-def _check_file(path: str, img: "nib.Nifti1Image", report: Report) -> None:
+
+def _check_file(path: str, img: nib.Nifti1Image, report: Report) -> None:
     """Check extension consistency and report shape / dimensionality."""
     if is_nifti(path):
         report.add("extension", OK, f"Valid NIfTI extension ({os.path.basename(path)}).", None)
@@ -232,16 +246,20 @@ def _check_file(path: str, img: "nib.Nifti1Image", report: Report) -> None:
     elif len(shape) == 4:
         # Explicitly surfaced rather than silently assuming 3D; data checks run
         # on the full array, geometry uses the spatial 3 dims.
-        report.add("dimensionality", WARNING,
-                   f"4D volume {shape} (timeseries/multi-channel); checks treat first 3 dims as spatial.",
-                   shape)
+        report.add(
+            "dimensionality",
+            WARNING,
+            f"4D volume {shape} (timeseries/multi-channel); checks treat first 3 dims as spatial.",
+            shape,
+        )
     else:
         report.add("dimensionality", ERROR, f"Unexpected dimensionality {len(shape)}D {shape}.", shape)
 
 
 # Public API
 
-def check_volume(nii_path: str, config: Optional[QCConfig] = None) -> Report:
+
+def check_volume(nii_path: str, config: QCConfig | None = None) -> Report:
     """
     Run all single-volume QC checks on a NIfTI file.
 

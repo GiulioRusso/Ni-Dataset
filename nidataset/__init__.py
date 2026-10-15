@@ -1,146 +1,128 @@
 # nidataset/__init__.py
 
-from ._version import __version__
-
-from .draw import (draw_3D_boxes,
-                   draw_2D_annotations,
-                   from_2D_to_3D_coords)
-
-from .preprocessing import (skull_CTA,
-                            skull_CTA_dataset,
-                            mip,
-                            mip_dataset,
-                            resampling,
-                            resampling_dataset,
-                            register_CTA,
-                            register_CTA_dataset,
-                            register_mask,
-                            register_mask_dataset,
-                            register_annotation,
-                            register_annotation_dataset)
-
-from .slices import (extract_slices,
-                     extract_slices_dataset,
-                     extract_annotations,
-                     extract_annotations_dataset)
-
-from .volume import (swap_nifti_views,
-                     extract_bounding_boxes,
-                     extract_bounding_boxes_dataset,
-                     generate_brain_mask,
-                     generate_brain_mask_dataset,
-                     crop_and_pad,
-                     crop_and_pad_dataset,
-                     generate_heatmap_volume)
-
-from .utility import (dataset_images_info,
-                      dataset_annotations_info)
-
-from .analysis import (compare_volumes,
-                       compare_volumes_dataset,
-                       compute_volume_statistics,
-                       compute_volume_statistics_dataset,
-                       split_dataset)
-
-from .transforms import (intensity_normalization,
-                         intensity_normalization_dataset,
-                         windowing,
-                         windowing_dataset,
-                         resample_to_reference,
-                         resample_to_reference_dataset,
-                         apply_transform,
-                         nifti_to_numpy,
-                         numpy_to_nifti,
-                         rescale_intensity,
-                         rescale_intensity_dataset,
-                         dicom_to_nifti,
-                         nifti_to_dicom,
-                         CT_WINDOW_PRESETS)
-
-from .spatial import (rotate_volume,
-                      rotate_volume_dataset,
-                      flip_volume,
-                      flip_volume_dataset,
-                      crop_volume,
-                      crop_to_content,
-                      crop_to_content_dataset)
-
-from .visualization import (overlay_mask_on_volume,
-                            overlay_mask_on_volume_dataset,
-                            create_slice_montage)
-
 # Quality-control subpackage (additive). Exposed as ``nid.qc``.
 from . import qc
+from ._version import __version__
+from .analysis import (
+    compare_volumes,
+    compare_volumes_dataset,
+    compute_volume_statistics,
+    compute_volume_statistics_dataset,
+    split_dataset,
+)
+from .draw import draw_2D_annotations, draw_3D_boxes, from_2D_to_3D_coords
+from .preprocessing import (
+    mip,
+    mip_dataset,
+    register_annotation,
+    register_annotation_dataset,
+    register_CTA,
+    register_CTA_dataset,
+    register_mask,
+    register_mask_dataset,
+    resampling,
+    resampling_dataset,
+    skull_CTA,
+    skull_CTA_dataset,
+)
+from .slices import extract_annotations, extract_annotations_dataset, extract_slices, extract_slices_dataset
+from .spatial import (
+    crop_to_content,
+    crop_to_content_dataset,
+    crop_volume,
+    flip_volume,
+    flip_volume_dataset,
+    rotate_volume,
+    rotate_volume_dataset,
+)
+from .transforms import (
+    CT_WINDOW_PRESETS,
+    apply_transform,
+    dicom_to_nifti,
+    intensity_normalization,
+    intensity_normalization_dataset,
+    nifti_to_dicom,
+    nifti_to_numpy,
+    numpy_to_nifti,
+    resample_to_reference,
+    resample_to_reference_dataset,
+    rescale_intensity,
+    rescale_intensity_dataset,
+    windowing,
+    windowing_dataset,
+)
+from .utility import dataset_annotations_info, dataset_images_info
+from .visualization import create_slice_montage, overlay_mask_on_volume, overlay_mask_on_volume_dataset
+from .volume import (
+    crop_and_pad,
+    crop_and_pad_dataset,
+    extract_bounding_boxes,
+    extract_bounding_boxes_dataset,
+    generate_brain_mask,
+    generate_brain_mask_dataset,
+    generate_heatmap_volume,
+    swap_nifti_views,
+)
 
 __all__ = [
+    "CT_WINDOW_PRESETS",
     "__version__",
-    # draw
-    "draw_3D_boxes",
-    "draw_2D_annotations",
-    "from_2D_to_3D_coords",
-    # preprocessing
-    "skull_CTA",
-    "skull_CTA_dataset",
-    "mip",
-    "mip_dataset",
-    "resampling",
-    "resampling_dataset",
-    "register_CTA",
-    "register_CTA_dataset",
-    "register_mask",
-    "register_mask_dataset",
-    "register_annotation",
-    "register_annotation_dataset",
-    # slices
-    "extract_slices",
-    "extract_slices_dataset",
-    "extract_annotations",
-    "extract_annotations_dataset",
-    # volume
-    "swap_nifti_views",
-    "extract_bounding_boxes",
-    "extract_bounding_boxes_dataset",
-    "generate_brain_mask",
-    "generate_brain_mask_dataset",
-    "crop_and_pad",
-    "crop_and_pad_dataset",
-    "generate_heatmap_volume",
-    # utility
-    "dataset_images_info",
-    "dataset_annotations_info",
-    # analysis
+    "apply_transform",
     "compare_volumes",
     "compare_volumes_dataset",
     "compute_volume_statistics",
     "compute_volume_statistics_dataset",
-    "split_dataset",
-    # transforms
-    "intensity_normalization",
-    "intensity_normalization_dataset",
-    "windowing",
-    "windowing_dataset",
-    "resample_to_reference",
-    "resample_to_reference_dataset",
-    "apply_transform",
-    "nifti_to_numpy",
-    "numpy_to_nifti",
-    "rescale_intensity",
-    "rescale_intensity_dataset",
-    "dicom_to_nifti",
-    "nifti_to_dicom",
-    "CT_WINDOW_PRESETS",
-    # spatial
-    "rotate_volume",
-    "rotate_volume_dataset",
-    "flip_volume",
-    "flip_volume_dataset",
-    "crop_volume",
+    "create_slice_montage",
+    "crop_and_pad",
+    "crop_and_pad_dataset",
     "crop_to_content",
     "crop_to_content_dataset",
-    # visualization
+    "crop_volume",
+    "dataset_annotations_info",
+    "dataset_images_info",
+    "dicom_to_nifti",
+    "draw_2D_annotations",
+    "draw_3D_boxes",
+    "extract_annotations",
+    "extract_annotations_dataset",
+    "extract_bounding_boxes",
+    "extract_bounding_boxes_dataset",
+    "extract_slices",
+    "extract_slices_dataset",
+    "flip_volume",
+    "flip_volume_dataset",
+    "from_2D_to_3D_coords",
+    "generate_brain_mask",
+    "generate_brain_mask_dataset",
+    "generate_heatmap_volume",
+    "intensity_normalization",
+    "intensity_normalization_dataset",
+    "mip",
+    "mip_dataset",
+    "nifti_to_dicom",
+    "nifti_to_numpy",
+    "numpy_to_nifti",
     "overlay_mask_on_volume",
     "overlay_mask_on_volume_dataset",
-    "create_slice_montage",
-    # quality control
     "qc",
+    "register_CTA",
+    "register_CTA_dataset",
+    "register_annotation",
+    "register_annotation_dataset",
+    "register_mask",
+    "register_mask_dataset",
+    "resample_to_reference",
+    "resample_to_reference_dataset",
+    "resampling",
+    "resampling_dataset",
+    "rescale_intensity",
+    "rescale_intensity_dataset",
+    "rotate_volume",
+    "rotate_volume_dataset",
+    "skull_CTA",
+    "skull_CTA_dataset",
+    "split_dataset",
+    "swap_nifti_views",
+    "windowing",
+    "windowing_dataset",
 ]
