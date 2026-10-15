@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nidataset"
 dynamic = ["version"]
-description = "A set of utilities for handling NIfTI datasets, including slice extraction, volume manipulation, and preprocessing of medical imaging data."
+description = "NIfTI dataset toolkit for CT/MRI deep-learning pipelines: slice extraction, registration, QC, preprocessing."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
@@ -19,6 +19,11 @@ classifiers = [
     "Intended Audience :: Healthcare Industry",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
@@ -41,8 +46,8 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.1.0",
 ]
-# Optional: enables YAML config files for `niqc --config qc.yaml`.
-# JSON configs work with no extra dependency.
+# Optional: enables YAML config files for `nii run pipeline.yaml` and
+# `niqc --config qc.yaml`. JSON configs work with no extra dependency.
 yaml = [
     "PyYAML>=6.0",
 ]
@@ -69,6 +74,7 @@ include = ["nidataset*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = ["fsl: needs FSL (bet, fslmaths) on PATH; skipped when absent"]
 
 [tool.ruff]
 line-length = 120

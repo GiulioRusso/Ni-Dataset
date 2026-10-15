@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use nidataset in your research, please cite it as below."
+title: "nidataset: NIfTI dataset toolkit for CT/MRI deep-learning pipelines"
+type: software
+authors:
+  - family-names: Russo
+    given-names: Giulio
+  - family-names: Russo
+    given-names: Ciro
+version: 0.9.0
+license: MIT
+repository-code: "https://github.com/GiulioRusso/Ni-Dataset"
+url: "https://giuliorusso.github.io/Ni-Dataset/"
+keywords:
+  - NIfTI
+  - medical imaging
+  - CT
+  - MRI
+  - deep learning
+  - dataset preparation
+# TODO(Giulio): add the publications that used nidataset, e.g.
+# references:
+#   - type: article
+#     title: "..."
+#     authors:
+#       - family-names: Russo
+#         given-names: Giulio
+#     doi: "10.xxxx/xxxxx"

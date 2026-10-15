@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Pinned so a new ruff release can't turn CI red on unchanged code; bump deliberately.
+      - run: pip install ruff==0.17.0
+      - run: ruff check nidataset tests examples
+      - run: ruff format --check nidataset tests examples
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -e ".[dev,yaml]"
+      # FSL is not installed on runners: tests marked `fsl` skip themselves.
+      - run: pytest --cov=nidataset --cov-report=term --cov-fail-under=70
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "### Coverage (${{ matrix.os }}, Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
