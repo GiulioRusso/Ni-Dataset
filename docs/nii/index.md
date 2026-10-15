@@ -25,6 +25,7 @@ it is the shell front-end for the geometric and conversion helpers.
 | DICOM series → NIfTI | [`dicom_to_nifti`](dicom_to_nifti.md) | `nii from-dicom` |
 | NIfTI → DICOM series | [`nifti_to_dicom`](nifti_to_dicom.md) | `nii to-dicom` |
 | Render a montage PNG | [`create_slice_montage`](../functions/visualization/create_slice_montage.md) | `nii preview` |
+| Run a multi-step pipeline | [`run_pipeline`](../pipeline/index.md) | `nii run` |
 
 ## Geometry is preserved
 

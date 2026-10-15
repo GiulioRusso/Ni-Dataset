@@ -28,6 +28,7 @@ usage / runtime error.
 | `to-dicom` | Convert NIfTI → DICOM series | `--series-description STR` |
 | `from-dicom` | Convert DICOM series folder → NIfTI | — |
 | `preview` | Render a slice-montage PNG of a volume | `--view {axial,coronal,sagittal}`, `--num-slices INT`, `--cols INT` |
+| `run` | Run a YAML/JSON pipeline config (`nii run CONFIG`); see [Pipelines](../pipeline/index.md) | `--only STEP[,STEP]` |
 
 ## Examples
 
@@ -53,6 +54,10 @@ nii from-dicom dicom/case_01/ out/
 
 # Render a montage PNG to eyeball a result
 nii preview out/scan_content.nii.gz out/ --view axial --num-slices 16
+
+# Run a whole YAML/JSON pipeline, or only some of its steps
+nii run pipeline.yaml
+nii run pipeline.yaml --only register,register_mask
 ```
 
 Output filenames carry an operation suffix: `_rot<k>`, `_flip<axis>`,
