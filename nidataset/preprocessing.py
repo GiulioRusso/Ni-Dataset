@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from typing import Optional
 
 import nibabel as nib
 import numpy as np
@@ -846,13 +847,14 @@ def register_CTA(
     cleanup: bool = False,
     debug: bool = False,
     number_histogram_bins: int = 128,
-    learning_rate: float = 0.0001,
+    learning_rate: Optional[float] = None,
     number_iterations: int = 2000,
     initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
     sigma_first: float = 2.0,
     sigma_second: float = 3.0,
     metric_sampling_percentage: float = 0.5,
     initial_transform=None,
+    random_seed: Optional[int] = 42,
 ) -> str:
     """
     Registers a CTA volume to a reference template using Mutual Information.
@@ -898,8 +900,10 @@ def register_CTA(
         Default: 128. Common values: 10, 50, 64, 128.
 
     :param learning_rate:
-        Learning rate for Gradient Descent optimizer.
-        Default: 0.0001. Common values: 0.0001-1.0.
+        Learning rate for the Gradient Descent optimizer. ``None`` (default) lets
+        SimpleITK estimate it once from the physical-shift scales, which is the
+        recommended setting. A number is used as given (no estimation).
+        *Before 0.9.0 this value was silently ignored: the rate was always estimated.*
 
     :param number_iterations:
         Maximum number of optimization iterations.
@@ -929,6 +933,12 @@ def register_CTA(
         Initial transformation object. If ``None``, defaults to
         ``sitk.Euler3DTransform()``. Can be any SimpleITK transform type
         (e.g., ``sitk.Euler3DTransform()``, ``sitk.AffineTransform(3)``).
+
+    :param random_seed:
+        Positive seed for the random metric sampling, so the same inputs always give
+        the same transform. ``None`` seeds from the wall clock (results then vary from
+        run to run, the behaviour before 0.9.0). ``0`` is rejected: SimpleITK reads it
+        as "use the wall clock", which would silently defeat the seed.
 
     :raises FileNotFoundError:
         If any input file does not exist.
@@ -1033,14 +1043,21 @@ def register_CTA(
     registration_method.SetMetricMovingMask(mask)
     registration_method.SetMetricFixedMask(template_mask)
     registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
-    registration_method.SetMetricSamplingPercentage(metric_sampling_percentage)
+    if random_seed is not None and random_seed <= 0:
+        raise ValueError(f"Error: random_seed must be a positive integer or None. Got {random_seed!r}.")
+    if random_seed is None:
+        registration_method.SetMetricSamplingPercentage(metric_sampling_percentage)
+    else:
+        registration_method.SetMetricSamplingPercentage(metric_sampling_percentage, random_seed)
 
     # interpolation method
     registration_method.SetInterpolator(sitk.sitkLinear)
 
     # optimizer settings
     registration_method.SetOptimizerAsGradientDescent(
-        learningRate=learning_rate, numberOfIterations=number_iterations, estimateLearningRate=registration_method.Once
+        learningRate=1.0 if learning_rate is None else learning_rate,
+        numberOfIterations=number_iterations,
+        estimateLearningRate=registration_method.Once if learning_rate is None else registration_method.Never,
     )
     registration_method.SetOptimizerScalesFromPhysicalShift()
 
@@ -1074,13 +1091,14 @@ def register_CTA_dataset(
     cleanup: bool = False,
     debug: bool = False,
     number_histogram_bins: int = 128,
-    learning_rate: float = 0.0001,
+    learning_rate: Optional[float] = None,
     number_iterations: int = 2000,
     initialization_strategy: int = sitk.CenteredTransformInitializerFilter.MOMENTS,
     sigma_first: float = 2.0,
     sigma_second: float = 3.0,
     metric_sampling_percentage: float = 0.5,
     initial_transform=None,
+    random_seed: Optional[int] = 42,
 ) -> list:
     """
     Registers all CTA images in a dataset folder to a reference template using
@@ -1148,8 +1166,10 @@ def register_CTA_dataset(
         Default: 128. Common values: 10, 50, 64, 128.
 
     :param learning_rate:
-        Learning rate for Gradient Descent optimizer.
-        Default: 0.0001. Common values: 0.0001-1.0.
+        Learning rate for the Gradient Descent optimizer. ``None`` (default) lets
+        SimpleITK estimate it once from the physical-shift scales, which is the
+        recommended setting. A number is used as given (no estimation).
+        *Before 0.9.0 this value was silently ignored: the rate was always estimated.*
 
     :param number_iterations:
         Maximum number of optimization iterations.
@@ -1179,6 +1199,12 @@ def register_CTA_dataset(
         Initial transformation object. If ``None``, defaults to
         ``sitk.Euler3DTransform()``. Can be any SimpleITK transform type
         (e.g., ``sitk.Euler3DTransform()``, ``sitk.AffineTransform(3)``).
+
+    :param random_seed:
+        Positive seed for the random metric sampling, so the same inputs always give
+        the same transform. ``None`` seeds from the wall clock (results then vary from
+        run to run, the behaviour before 0.9.0). ``0`` is rejected: SimpleITK reads it
+        as "use the wall clock", which would silently defeat the seed.
 
     :raises FileNotFoundError:
         If ``nii_folder`` does not exist or contains no ``.nii.gz`` files.
@@ -1273,6 +1299,7 @@ def register_CTA_dataset(
                 sigma_second,
                 metric_sampling_percentage,
                 initial_transform,
+                random_seed,
             )
             output_paths.append(result_path)
         else:  # saving_mode == "folder"
@@ -1296,6 +1323,7 @@ def register_CTA_dataset(
                 sigma_second,
                 metric_sampling_percentage,
                 initial_transform,
+                random_seed,
             )
 
             # move registered image to registered folder

@@ -16,7 +16,7 @@ draw_3D_boxes(
     output_path: str,
     intensity_based_on_score: bool = False,
     debug: bool = False
-) -> None
+) -> str
 ```
 
 ## Overview
@@ -58,10 +58,17 @@ The input dataframe must contain these columns:
 | `SCORE`  | numeric | Confidence score (required only if `intensity_based_on_score=True`) |
 
 **Important**: Coordinates must be in voxel space (0-indexed) matching the reference image dimensions.
+`MIN` and `MAX` are both **inclusive**: a box with `X_MIN=5, X_MAX=9` covers voxels 5–9. This is the
+same convention used by [`extract_annotations`](../slices/extract_annotations.md) (`saving_mode="volume"`,
+`data_mode="box"`), [`extract_bounding_boxes`](../volume/extract_bounding_boxes.md) and
+[`dataset_annotations_info`](../utility/dataset_annotations_info.md), so their boxes can be drawn back unchanged.
+
+> **Changed in 0.9.0:** `MAX` was previously treated as exclusive (boxes were one voxel short on
+> every axis), and a negative `MIN` wrapped around to the opposite side of the volume.
 
 ## Returns
 
-`None` – The function saves the output to disk.
+`str` – Path to the saved `<PREFIX>_boxes.nii.gz` file.
 
 ## Output File
 
@@ -100,7 +107,8 @@ This allows visual differentiation of boxes by confidence level in image viewers
 
 ## Usage Notes
 
-- **Coordinate System**: All coordinates must be in voxel indices (0-indexed)
+- **Coordinate System**: All coordinates must be in voxel indices (0-indexed), `MAX` inclusive
+- **Out-of-bounds Boxes**: Boxes reaching outside the volume are clipped to it
 - **Overlapping Boxes**: If boxes overlap, later boxes in the dataframe overwrite earlier ones
 - **Spatial Alignment**: The output mask uses the same affine transformation as the reference image
 - **Empty Background**: All voxels not within any box are set to 0

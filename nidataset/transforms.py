@@ -5,8 +5,10 @@ Provides windowing, intensity normalization, resampling to reference,
 and format conversion helpers.
 """
 
+import locale
 import logging
 import os
+from contextlib import contextmanager
 from typing import Optional
 
 import nibabel as nib
@@ -648,6 +650,43 @@ def rescale_intensity_dataset(
 # DICOM <-> NIfTI conversion
 
 
+@contextmanager
+def _preserve_locale():
+    """GDCM (SimpleITK's DICOM I/O) switches the process locale to "C" and leaves it there.
+
+    That silently turns Python's default text encoding into ASCII for the rest of the
+    process, so restore whatever was set before.
+    """
+    saved = locale.setlocale(locale.LC_ALL)
+    try:
+        yield
+    finally:
+        locale.setlocale(locale.LC_ALL, saved)
+
+
+def _sort_slices_along_normal(file_names) -> list:
+    """
+    Order DICOM slices by ImagePositionPatient projected on the slice normal.
+
+    ``GetGDCMSeriesFileNames`` skips this sort on its first call in a process, and an
+    unsorted series is assembled with the wrong origin (shifted volume). Files lacking
+    the position/orientation tags keep their given order.
+    """
+    reader = sitk.ImageFileReader()
+
+    def position(fn):
+        reader.SetFileName(fn)
+        reader.ReadImageInformation()
+        if not (reader.HasMetaDataKey("0020|0032") and reader.HasMetaDataKey("0020|0037")):
+            return 0.0
+        iop = [float(v) for v in reader.GetMetaData("0020|0037").split("\\")]
+        ipp = [float(v) for v in reader.GetMetaData("0020|0032").split("\\")]
+        return float(np.dot(np.cross(iop[:3], iop[3:]), ipp))
+
+    return sorted(file_names, key=position)
+
+
+@_preserve_locale()
 def dicom_to_nifti(dicom_dir: str, output_path: str, debug: bool = False) -> str:
     """
     Convert a directory of DICOM slices (one series) into a single NIfTI volume.
@@ -677,7 +716,7 @@ def dicom_to_nifti(dicom_dir: str, output_path: str, debug: bool = False) -> str
     file_names = reader.GetGDCMSeriesFileNames(dicom_dir)
     if not file_names:
         raise FileNotFoundError(f"No DICOM series found in '{dicom_dir}'.")
-    reader.SetFileNames(file_names)
+    reader.SetFileNames(_sort_slices_along_normal(file_names))
     image = reader.Execute()
 
     name = os.path.basename(os.path.normpath(dicom_dir)) or "series"
@@ -689,6 +728,7 @@ def dicom_to_nifti(dicom_dir: str, output_path: str, debug: bool = False) -> str
     return out_file
 
 
+@_preserve_locale()
 def nifti_to_dicom(nii_path: str, output_path: str, series_description: str = "nidataset", debug: bool = False) -> str:
     """
     Convert a NIfTI volume into a DICOM series (one ``.dcm`` file per slice).
