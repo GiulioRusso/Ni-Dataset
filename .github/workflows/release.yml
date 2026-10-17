@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.9.0 to build and publish to PyPI.
+# Push a tag like v0.9.1 to build and publish to PyPI.
 # Uses PyPI Trusted Publishing (OIDC): no API token is stored in the repo.
 # One-time setup on pypi.org -> nidataset -> Publishing: add a GitHub publisher
 # for this repo, workflow `release.yml`, environment `pypi`.
