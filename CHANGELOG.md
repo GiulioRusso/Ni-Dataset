@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/) (pre-1.0: minor bumps may add features).
 
-## [0.9.0] - Unreleased
+## [0.9.1] - 2026-10-17
+
+### Changed
+- PyPI metadata lists only `Programming Language :: Python :: 3` instead of
+  each minor version; `requires-python = ">=3.9"` is unchanged.
+
+## [0.9.0] - 2026-10-15
 
 ### Added
 - `nidataset.pipeline`: config-driven pipelines. Describe a dataset and ordered
@@ -53,5 +59,6 @@ All notable changes to this project are documented here. The format follows
 - `nii` CLI: rotate, flip, crop, crop-to-content, rescale, DICOM conversion, preview.
 - `nidataset.qc` quality-control module and `niqc` CLI.
 
-[0.9.0]: https://github.com/GiulioRusso/Ni-Dataset/compare/v0.8.0...HEAD
+[0.9.1]: https://github.com/GiulioRusso/Ni-Dataset/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/GiulioRusso/Ni-Dataset/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/GiulioRusso/Ni-Dataset/compare/v0.7.0...v0.8.0
