@@ -66,7 +66,7 @@ If you use nidataset in your research, please cite it ([`CITATION.cff`](https://
 
 See [`CONTRIBUTING.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/CONTRIBUTING.md) and the [`CHANGELOG.md`](https://github.com/GiulioRusso/Ni-Dataset/blob/main/CHANGELOG.md).
 
-Authors: Giulio Russo, [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
+Authors: [Giulio Russo](https://www.linkedin.com/in/russogiulio/), [Ciro Russo, PhD](https://www.linkedin.com/in/ciro-russo-b14056100/)
 
 ## ⚖️ License
 
